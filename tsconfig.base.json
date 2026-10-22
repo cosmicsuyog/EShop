@@ -13,18 +13,14 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
+    "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": true,
     "target": "es2022",
     "customConditions": ["development"],
     "baseUrl": ".",
     "paths": {
-      "@eshop/error-handler": ["Packages/error-handler/index.ts"],
-      "@eshop/error-handler/*": ["Packages/error-handler/*"],
-      "@eshop/middleware": ["Packages/middleware/index.ts"],
-      "@eshop/middleware/*": ["Packages/middleware/*"],
-      "@eshop/prisma": ["Packages/libs/prisma/index.ts"],
-      "@eshop/generated/prisma": ["generated/prisma/client.ts"]
+      "@packages/*": ["Packages/*"]
     }
   }
 }
