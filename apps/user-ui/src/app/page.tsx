@@ -29,8 +29,14 @@ type CategoriesResponse = {
   categories: string[];
 };
 
+type SubcategoriesResponse = {
+  success: true;
+  subcategories: string[];
+};
+
 type CatalogSearchParams = {
   category?: string | string[];
+  subcategory?: string | string[];
   page?: string | string[];
 };
 
@@ -104,22 +110,53 @@ const isCategoriesResponse = (value: unknown): value is CategoriesResponse =>
       value.categories.every((category) => typeof category === 'string')
   );
 
+const isSubcategoriesResponse = (
+  value: unknown
+): value is SubcategoriesResponse =>
+  Boolean(
+    value &&
+      typeof value === 'object' &&
+      'success' in value &&
+      value.success === true &&
+      'subcategories' in value &&
+      Array.isArray(value.subcategories) &&
+      value.subcategories.every(
+        (subcategory) => typeof subcategory === 'string'
+      )
+  );
+
 const formatPrice = (price: number) =>
   new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(price);
 
-const catalogPageHref = (page: number, category?: string) => {
+const catalogPageHref = (
+  page: number,
+  category?: string,
+  subcategory?: string
+) => {
   const search = new URLSearchParams({ page: String(page) });
   if (category) {
     search.set('category', category);
+  }
+  if (subcategory) {
+    search.set('subcategory', subcategory);
+  }
+  return `/?${search.toString()}`;
+};
+
+const catalogSubcategoryHref = (category: string, subcategory?: string) => {
+  const search = new URLSearchParams({ category });
+  if (subcategory) {
+    search.set('subcategory', subcategory);
   }
   return `/?${search.toString()}`;
 };
 
 async function loadCatalog(
   category: string | undefined,
+  subcategory: string | undefined,
   page: number
 ): Promise<CatalogResult> {
   try {
@@ -129,6 +166,9 @@ async function loadCatalog(
     endpoint.searchParams.set('limit', String(PAGE_SIZE));
     if (category) {
       endpoint.searchParams.set('category', category);
+    }
+    if (subcategory) {
+      endpoint.searchParams.set('subcategory', subcategory);
     }
     const response = await fetch(endpoint, { cache: 'no-store' });
     if (!response.ok) {
@@ -175,6 +215,35 @@ async function loadCategories(): Promise<{
   }
 }
 
+async function loadSubcategories(category: string | undefined): Promise<{
+  subcategories: string[];
+  error: boolean;
+}> {
+  if (!category) {
+    return { subcategories: [], error: false };
+  }
+
+  try {
+    const gatewayUrl = process.env.API_GATEWAY_URL ?? 'http://localhost:8000';
+    const endpoint = new URL('/product/api/subcategories', gatewayUrl);
+    endpoint.searchParams.set('category', category);
+    const response = await fetch(endpoint, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`Gateway returned HTTP ${response.status}`);
+    }
+
+    const payload: unknown = await response.json();
+    if (!isSubcategoriesResponse(payload)) {
+      throw new Error('Gateway returned an invalid subcategories response');
+    }
+
+    return { subcategories: payload.subcategories, error: false };
+  } catch (error) {
+    console.error('Unable to load product subcategories.', error);
+    return { subcategories: [], error: true };
+  }
+}
+
 export default async function Index({
   searchParams,
 }: {
@@ -191,6 +260,17 @@ export default async function Index({
     typeof categoryParam === 'string' && !invalidCategory
       ? categoryParam.trim()
       : undefined;
+  const subcategoryParam = params.subcategory;
+  const invalidSubcategory =
+    subcategoryParam !== undefined &&
+    (typeof subcategoryParam !== 'string' ||
+      subcategoryParam.trim().length === 0 ||
+      subcategoryParam.length > 100 ||
+      !selectedCategory);
+  const selectedSubcategory =
+    typeof subcategoryParam === 'string' && !invalidSubcategory
+      ? subcategoryParam.trim()
+      : undefined;
   const pageParam = params.page;
   const page =
     typeof pageParam === 'string' && /^[1-9]\d*$/.test(pageParam)
@@ -203,17 +283,22 @@ export default async function Index({
       !Number.isSafeInteger((page - 1) * PAGE_SIZE));
   const currentPage = page && !invalidPage ? page : 1;
   const catalogPromise =
-    invalidCategory || invalidPage
+    invalidCategory || invalidSubcategory || invalidPage
       ? Promise.resolve({
           products: [],
           pagination: null,
           error: false,
         })
-      : loadCatalog(selectedCategory, currentPage);
+      : loadCatalog(selectedCategory, selectedSubcategory, currentPage);
   const [
     { products, pagination, error },
     { categories, error: categoriesError },
-  ] = await Promise.all([catalogPromise, loadCategories()]);
+    { subcategories, error: subcategoriesError },
+  ] = await Promise.all([
+    catalogPromise,
+    loadCategories(),
+    loadSubcategories(selectedCategory),
+  ]);
 
   return (
     <main className="store-shell">
@@ -278,13 +363,52 @@ export default async function Index({
           </p>
         )}
 
-        {invalidCategory || invalidPage ? (
+        {selectedCategory && (
+          <nav
+            className="category-nav subcategory-nav"
+            aria-label="Product subcategories"
+          >
+            <a
+              className={`category-filter${
+                selectedSubcategory ? '' : ' is-active'
+              }`}
+              href={catalogSubcategoryHref(selectedCategory)}
+              aria-current={selectedSubcategory ? undefined : 'page'}
+            >
+              All {selectedCategory}
+            </a>
+            {subcategories.map((subcategory) => (
+              <a
+                className={`category-filter${
+                  selectedSubcategory === subcategory ? ' is-active' : ''
+                }`}
+                href={catalogSubcategoryHref(selectedCategory, subcategory)}
+                aria-current={
+                  selectedSubcategory === subcategory ? 'page' : undefined
+                }
+                key={subcategory}
+              >
+                {subcategory}
+              </a>
+            ))}
+          </nav>
+        )}
+
+        {subcategoriesError && selectedCategory && (
+          <p className="category-warning" role="status">
+            Subcategory filters are temporarily unavailable.
+          </p>
+        )}
+
+        {invalidCategory || invalidSubcategory || invalidPage ? (
           <div className="catalog-message" role="alert">
             <h3>Invalid catalog filter</h3>
             <p>
               {invalidPage
                 ? 'Choose a valid positive page number.'
-                : 'Choose a category from the available filters.'}
+                : invalidCategory
+                ? 'Choose a category from the available filters.'
+                : 'Choose a subcategory within a selected category.'}
             </p>
           </div>
         ) : error ? (
@@ -360,7 +484,11 @@ export default async function Index({
             {currentPage > 1 ? (
               <Link
                 className="pagination-link"
-                href={catalogPageHref(currentPage - 1, selectedCategory)}
+                href={catalogPageHref(
+                  currentPage - 1,
+                  selectedCategory,
+                  selectedSubcategory
+                )}
                 rel="prev"
               >
                 Previous
@@ -379,7 +507,11 @@ export default async function Index({
             {currentPage < pagination.totalPages ? (
               <Link
                 className="pagination-link"
-                href={catalogPageHref(currentPage + 1, selectedCategory)}
+                href={catalogPageHref(
+                  currentPage + 1,
+                  selectedCategory,
+                  selectedSubcategory
+                )}
                 rel="next"
               >
                 Next

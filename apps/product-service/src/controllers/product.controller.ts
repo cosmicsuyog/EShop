@@ -7,6 +7,7 @@ import {
   getCatalogProductBySlug,
   listCatalogCategories,
   listCatalogProducts,
+  listCatalogSubcategories,
 } from '../services/product.service.js';
 
 const DEFAULT_PAGE = 1;
@@ -34,6 +35,38 @@ export const getCatalogCategories = async (
       success: true,
       message: 'Categories fetched successfully!',
       categories: categories.map(({ category }) => category),
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getCatalogSubcategories = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const { category } = req.query;
+
+  if (
+    typeof category !== 'string' ||
+    category.trim().length === 0 ||
+    category.length > 100
+  ) {
+    return next(
+      new ValidationError(
+        'Category must be a non-empty string of at most 100 characters.'
+      )
+    );
+  }
+
+  try {
+    const subcategories = await listCatalogSubcategories(category.trim());
+
+    return res.status(200).json({
+      success: true,
+      message: 'Subcategories fetched successfully!',
+      subcategories: subcategories.map(({ subcategory }) => subcategory),
     });
   } catch (error) {
     return next(error);

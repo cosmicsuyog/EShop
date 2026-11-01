@@ -114,6 +114,77 @@ describe('product catalog routes', () => {
     });
   });
 
+  it('returns distinct active subcategories for a category', async () => {
+    findMany.mockResolvedValue([
+      { subcategory: 'Backpacks' },
+      { subcategory: 'Totes' },
+    ] as never);
+
+    const response = await getProducts(
+      '/api/subcategories?category=Accessories'
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      success: true,
+      message: 'Subcategories fetched successfully!',
+      subcategories: ['Backpacks', 'Totes'],
+    });
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        isDeleted: false,
+        status: 'Active',
+        category: 'Accessories',
+      },
+      distinct: ['subcategory'],
+      orderBy: {
+        subcategory: 'asc',
+      },
+      select: {
+        subcategory: true,
+      },
+    });
+  });
+
+  it('returns an empty subcategory list when a category has no active products', async () => {
+    findMany.mockResolvedValue([]);
+
+    const response = await getProducts(
+      '/api/subcategories?category=Accessories'
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).subcategories).toEqual([]);
+  });
+
+  it.each([
+    ['/api/subcategories', 'missing category'],
+    ['/api/subcategories?category=', 'empty category'],
+    [
+      '/api/subcategories?category=Accessories&category=Home',
+      'repeated category',
+    ],
+  ])('rejects invalid subcategory lookup input (%s)', async (path) => {
+    const response = await getProducts(path);
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).message).toContain('Category must be');
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('forwards subcategory lookup errors to the error middleware', async () => {
+    findMany.mockRejectedValue(new Error('database unavailable'));
+
+    const response = await getProducts(
+      '/api/subcategories?category=Accessories'
+    );
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body)).toEqual({
+      error: 'Something wen wrong,please try again!',
+    });
+  });
+
   it('returns the active catalog products', async () => {
     const product = {
       id: '507f1f77bcf86cd799439011',
