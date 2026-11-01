@@ -21,6 +21,11 @@ const catalogProductSelect = {
   createdAt: true,
 } as const;
 
+const catalogProductDetailSelect = {
+  ...catalogProductSelect,
+  id: false,
+} as const;
+
 export const listCatalogProducts = (
   category: string | undefined,
   subcategory: string | undefined,
@@ -68,5 +73,5 @@ export const getCatalogProductBySlug = (slug: string) =>
       isDeleted: false,
       status: 'Active',
     },
-    select: catalogProductSelect,
+    select: catalogProductDetailSelect,
   });

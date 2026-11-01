@@ -373,6 +373,17 @@ p {
   padding: 28px 0;
 }
 
+.detail-loading {
+  color: #77766f;
+  min-height: 45vh;
+  padding: 20vh 0;
+  text-align: center;
+}
+
+.detail-loading p {
+  margin-top: 12px;
+}
+
 .detail-breadcrumb a:hover,
 .store-footer a:hover {
   color: #315744;
@@ -535,6 +546,34 @@ p {
 }
 
 .not-found-shell a:focus-visible {
+  outline: 3px solid #315744;
+  outline-offset: 3px;
+}
+
+.detail-error-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.detail-error-actions button {
+  background: #315744;
+  border: 0;
+  border-radius: 5px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  margin-top: 24px;
+  padding: 11px 16px;
+}
+
+.detail-error-actions button:hover {
+  background: #244332;
+}
+
+.detail-error-actions button:focus-visible {
   outline: 3px solid #315744;
   outline-offset: 3px;
 }

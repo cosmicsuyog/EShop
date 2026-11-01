@@ -296,7 +296,6 @@ describe('product catalog routes', () => {
 
   it('returns an active product by slug', async () => {
     const product = {
-      id: '507f1f77bcf86cd799439011',
       title: 'Canvas Backpack',
       slug: 'canvas-backpack',
       category: 'Accessories',
@@ -332,21 +331,42 @@ describe('product catalog routes', () => {
           isDeleted: false,
           status: 'Active',
         },
+        select: expect.objectContaining({
+          id: false,
+          slug: true,
+          detailed_description: true,
+        }),
       })
     );
   });
 
-  it('returns 404 when a product slug is not in the active catalog', async () => {
-    findFirst.mockResolvedValue(null);
+  it.each([
+    ['missing', 'missing-product'],
+    ['inactive', 'inactive-product'],
+    ['deleted', 'deleted-product'],
+  ])(
+    'returns 404 when the %s product is unavailable',
+    async (_reason, slug) => {
+      findFirst.mockResolvedValue(null);
 
-    const response = await getProducts('/api/products/missing-product');
+      const response = await getProducts(`/api/products/${slug}`);
 
-    expect(response.statusCode).toBe(404);
-    expect(JSON.parse(response.body)).toEqual({
-      status: 'error',
-      message: 'Product not found.',
-    });
-  });
+      expect(response.statusCode).toBe(404);
+      expect(JSON.parse(response.body)).toEqual({
+        status: 'error',
+        message: 'Product not found.',
+      });
+      expect(findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            slug,
+            isDeleted: false,
+            status: 'Active',
+          },
+        })
+      );
+    }
+  );
 
   it('rejects invalid product slugs before querying the database', async () => {
     const response = await getProducts('/api/products/Invalid%20Slug');
