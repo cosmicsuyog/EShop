@@ -4,6 +4,7 @@ jest.mock('@packages/libs/prisma/index.js', () => ({
     products: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      count: jest.fn(),
     },
   },
 }));

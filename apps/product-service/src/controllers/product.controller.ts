@@ -8,6 +8,19 @@ import {
   listCatalogProducts,
 } from '../services/product.service.js';
 
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
+
+const parsePositiveInteger = (value: unknown) => {
+  if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+};
+
 export const getCatalogProducts = async (
   req: Request,
   res: Response,
@@ -15,6 +28,14 @@ export const getCatalogProducts = async (
 ) => {
   try {
     const category = req.query.category;
+    const page =
+      req.query.page === undefined
+        ? DEFAULT_PAGE
+        : parsePositiveInteger(req.query.page);
+    const limit =
+      req.query.limit === undefined
+        ? DEFAULT_LIMIT
+        : parsePositiveInteger(req.query.limit);
 
     if (
       category !== undefined &&
@@ -29,14 +50,36 @@ export const getCatalogProducts = async (
       );
     }
 
-    const products = await listCatalogProducts(
-      typeof category === 'string' ? category.trim() : undefined
+    if (page === undefined || limit === undefined || limit > MAX_LIMIT) {
+      return next(
+        new ValidationError(
+          `Page must be a positive integer and limit must be a positive integer no greater than ${MAX_LIMIT}.`
+        )
+      );
+    }
+
+    if (!Number.isSafeInteger((page - 1) * limit)) {
+      return next(
+        new ValidationError('The requested page is too large.')
+      );
+    }
+
+    const [products, total] = await listCatalogProducts(
+      typeof category === 'string' ? category.trim() : undefined,
+      page,
+      limit
     );
 
     return res.status(200).json({
       success: true,
       message: 'Products fetched successfully!',
       products,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     return next(error);

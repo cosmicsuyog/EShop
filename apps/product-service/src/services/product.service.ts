@@ -21,18 +21,28 @@ const catalogProductSelect = {
   createdAt: true,
 } as const;
 
-export const listCatalogProducts = (category?: string) =>
-  prisma.products.findMany({
-    where: {
-      isDeleted: false,
-      status: 'Active',
-      ...(category ? { category } : {}),
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    select: catalogProductSelect,
-  });
+export const listCatalogProducts = (
+  category: string | undefined,
+  page: number,
+  limit: number
+) => {
+  const where = {
+    isDeleted: false,
+    status: 'Active' as const,
+    ...(category ? { category } : {}),
+  };
+
+  return Promise.all([
+    prisma.products.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip: (page - 1) * limit,
+      take: limit,
+      select: catalogProductSelect,
+    }),
+    prisma.products.count({ where }),
+  ]);
+};
 
 export const getCatalogProductBySlug = (slug: string) =>
   prisma.products.findFirst({

@@ -7,6 +7,7 @@ describe('product catalog routes', () => {
   let port: number;
   const findMany = jest.mocked(prisma.products.findMany);
   const findFirst = jest.mocked(prisma.products.findFirst);
+  const count = jest.mocked(prisma.products.count);
 
   beforeAll(async () => {
     server = createApp().listen(0);
@@ -27,6 +28,7 @@ describe('product catalog routes', () => {
   afterAll(async () => {
     findMany.mockReset();
     findFirst.mockReset();
+    count.mockReset();
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
@@ -35,6 +37,7 @@ describe('product catalog routes', () => {
   beforeEach(() => {
     findMany.mockReset();
     findFirst.mockReset();
+    count.mockReset();
   });
 
   const getProducts = (path = '/api/products') =>
@@ -84,6 +87,7 @@ describe('product catalog routes', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
     };
     findMany.mockResolvedValue([product] as never);
+    count.mockResolvedValue(1);
 
     const response = await getProducts('/api/products?category=Accessories');
 
@@ -92,6 +96,12 @@ describe('product catalog routes', () => {
       success: true,
       message: 'Products fetched successfully!',
       products: [product],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
+      },
     });
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -100,18 +110,77 @@ describe('product catalog routes', () => {
           status: 'Active',
           category: 'Accessories',
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: 0,
+        take: 20,
       })
     );
+    expect(count).toHaveBeenCalledWith({
+      where: {
+        isDeleted: false,
+        status: 'Active',
+        category: 'Accessories',
+      },
+    });
   });
 
   it('returns an empty list when the catalog has no products', async () => {
     findMany.mockResolvedValue([]);
+    count.mockResolvedValue(0);
 
     const response = await getProducts();
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body).products).toEqual([]);
+    expect(JSON.parse(response.body).pagination).toEqual({
+      page: 1,
+      limit: 20,
+      total: 0,
+      totalPages: 0,
+    });
+  });
+
+  it('returns the requested catalog page and total count', async () => {
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(12);
+
+    const response = await getProducts(
+      '/api/products?category=Accessories&page=2&limit=5'
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).pagination).toEqual({
+      page: 2,
+      limit: 5,
+      total: 12,
+      totalPages: 3,
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 5,
+        take: 5,
+        where: {
+          isDeleted: false,
+          status: 'Active',
+          category: 'Accessories',
+        },
+      })
+    );
+  });
+
+  it.each([
+    ['/api/products?page=0', 'page=0'],
+    ['/api/products?page=1.5', 'fractional page'],
+    ['/api/products?limit=101', 'limit above the maximum'],
+    ['/api/products?page=1&page=2', 'repeated page parameter'],
+    ['/api/products?limit=9007199254740992', 'unsafe integer'],
+  ])('rejects invalid pagination input (%s)', async (path) => {
+    const response = await getProducts(path);
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).message).toContain('Page must be');
+    expect(findMany).not.toHaveBeenCalled();
+    expect(count).not.toHaveBeenCalled();
   });
 
   it('returns a validation error for an invalid category filter', async () => {
