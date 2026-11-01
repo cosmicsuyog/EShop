@@ -34,7 +34,7 @@ export const createApp = (options: GatewayOptions = {}) => {
 
   app.use(
     cors({
-      origin: ['http://localhost:3000'],
+      origin: [process.env.USER_UI_ORIGIN ?? 'http://localhost:3000'],
       allowedHeaders: ['Content-Type', 'Authorization'],
       credentials: true,
     })

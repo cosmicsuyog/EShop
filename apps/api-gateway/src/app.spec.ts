@@ -157,12 +157,18 @@ describe('API gateway routing', () => {
   });
 
   it('preserves the gateway health endpoint without proxying', async () => {
-    const response = await get(gatewayPort, '/gateway-health');
+    const response = await get(gatewayPort, '/gateway-health', {
+      origin: 'http://localhost:3000',
+    });
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
       message: 'Welcome to api-gateway!',
     });
+    expect(response.headers['access-control-allow-origin']).toBe(
+      'http://localhost:3000'
+    );
+    expect(response.headers['access-control-allow-credentials']).toBe('true');
   });
 
   it('returns 502 when product-service is unavailable', async () => {

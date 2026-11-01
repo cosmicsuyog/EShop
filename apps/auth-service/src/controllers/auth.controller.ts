@@ -9,11 +9,11 @@ import {
   handleForgotPassword,
   verifyForgotPasswordOtp,
 } from '../utils/auth.helper';
-import prisma from 'Packages/libs/prisma';
+import prisma from '@packages/libs/prisma/index.js';
 import { AuthError, ValidationError } from '@packages/error-handler/index';
 import bcrypt from "bcryptjs"
-import jwt from "jsonwebtoken";
 import { setCookie } from '../utils/cookies/setCookies';
+import { signUserToken } from '../utils/sessionTokens';
 
 
 export const userRegistration = async (
@@ -95,19 +95,15 @@ export const loginUser = async(req:Request,res:Response,next:NextFunction)=>{
     }
 
     // generate access and refresh token 
-    const accessToken = jwt.sign(
-      {id:user.id,role:"user"},
-      process.env.ACCESS_TOKEN_SECRET as string,
-      {
-        expiresIn:"15m",
-      }
+    const accessToken = signUserToken(
+      user.id,
+      'access',
+      process.env.ACCESS_TOKEN_SECRET as string
     );
-    const refreshToken = jwt.sign(
-      {id:user.id,role:"user"},
-      process.env.REFRESH_TOKEN_SECRET as string,
-      {
-        expiresIn:"7d",
-      }
+    const refreshToken = signUserToken(
+      user.id,
+      'refresh',
+      process.env.REFRESH_TOKEN_SECRET as string
     );
     // store the refresh and access token in an httpOnly secure cookie
     setCookie(res,"refreshToken",refreshToken)

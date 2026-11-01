@@ -4,13 +4,14 @@ import { errorMiddleware } from '@packages/error-handler/error-middleware';
 import cookieParser from 'cookie-parser';
 import router from './routes/auth.router';
 import swaggerUi from "swagger-ui-express";
+import { trustedUserInterfaceOrigin } from './utils/trustedOrigin';
 const swaggerDocument = require("./swagger-output.json");
 
 const app = express();
 
 app.use(
   cors({
-    origin: ['http://localhost:3000'],
+    origin: [trustedUserInterfaceOrigin],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   })
