@@ -793,7 +793,8 @@ p {
   font-weight: 600;
 }
 
-.auth-form input {
+.auth-form input,
+.auth-form select {
   background: #fff;
   border: 1px solid #d8d6cf;
   border-radius: 5px;
@@ -805,7 +806,8 @@ p {
   width: 100%;
 }
 
-.auth-form input:focus {
+.auth-form input:focus,
+.auth-form select:focus {
   border-color: #315744;
   outline: 3px solid rgb(49 87 68 / 16%);
 }
@@ -891,6 +893,37 @@ p {
   color: #315744;
   font-weight: 600;
   text-decoration: underline;
+}
+
+.seller-onboarding {
+  max-width: 560px;
+}
+
+.seller-stepper {
+  border-bottom: 1px solid #e8e5de;
+  color: #77766f;
+  display: grid;
+  font-size: 0.75rem;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 22px;
+  padding-bottom: 16px;
+  text-align: center;
+}
+
+.seller-stepper .is-active {
+  color: #315744;
+  font-weight: 700;
+}
+
+.seller-form-error {
+  margin-top: 18px;
+}
+
+.seller-sign-out {
+  display: block;
+  margin-top: 14px;
+  width: 100%;
 }
 
 .account-profile {
