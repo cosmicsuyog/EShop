@@ -163,6 +163,9 @@ describe('customer session endpoints', () => {
       ...(cookie ? { cookie } : {}),
     });
 
+  const logout = (origin = 'http://localhost:3000') =>
+    send('POST', '/api/auth/logout-user', { origin });
+
   it('issues distinct typed access and refresh tokens during login', async () => {
     findUnique.mockResolvedValue(user as never);
 
@@ -350,6 +353,36 @@ describe('customer session endpoints', () => {
     );
 
     expect(response.statusCode).toBe(401);
+    expect(response.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('clears both authentication cookies without claiming token revocation', async () => {
+    const response = await logout();
+    const setCookies = response.headers['set-cookie'] as string[];
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      success: true,
+      message:
+        'Signed out on this browser. Previously issued access tokens are not revoked.',
+    });
+    expect(setCookies).toHaveLength(2);
+    expect(setCookies[0]).toContain('accessToken=;');
+    expect(setCookies[1]).toContain('refreshToken=;');
+    for (const cookie of setCookies) {
+      expect(cookie).toContain('Path=/');
+      expect(cookie).toContain('HttpOnly');
+      expect(cookie).toContain('Secure');
+      expect(cookie).toContain('SameSite=None');
+      expect(cookie).toContain('Expires=Thu, 01 Jan 1970');
+    }
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects logout requests from an untrusted origin', async () => {
+    const response = await logout('https://attacker.example');
+
+    expect(response.statusCode).toBe(403);
     expect(response.headers['set-cookie']).toBeUndefined();
   });
 });

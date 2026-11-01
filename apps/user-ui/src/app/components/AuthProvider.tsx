@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react';
 import axios from 'axios';
-import { authApi, SafeUser } from '../lib/authApi';
+import { getCurrentUser, SafeUser } from '../lib/authApi';
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -24,27 +24,6 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-const getSafeProfile = (value: unknown): SafeUser | null => {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    !('id' in value) ||
-    typeof value.id !== 'string' ||
-    !('email' in value) ||
-    typeof value.email !== 'string' ||
-    !('name' in value) ||
-    typeof value.name !== 'string'
-  ) {
-    return null;
-  }
-
-  return {
-    id: value.id,
-    email: value.email,
-    name: value.name,
-  };
-};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SafeUser | null>(null);
@@ -65,16 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      const { data } = await authApi.get<{ user?: unknown }>(
-        '/api/auth/logged-in-user'
-      );
+      const profile = await getCurrentUser();
       if (generation !== restoreGeneration.current) {
         return;
-      }
-
-      const profile = getSafeProfile(data.user);
-      if (!profile) {
-        throw new Error('The authentication service returned an invalid user.');
       }
 
       setUser(profile);

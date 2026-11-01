@@ -100,6 +100,53 @@ export const isSafeUser = (value: unknown): value is SafeUser =>
       typeof value.name === 'string'
   );
 
+export const getSafeUserProfile = (value: unknown): SafeUser | null =>
+  isSafeUser(value)
+    ? {
+        id: value.id,
+        email: value.email,
+        name: value.name,
+      }
+    : null;
+
+export const loginCustomer = async (email: string, password: string) => {
+  const { data } = await authApi.post<{ user?: unknown }>('/api/login-user', {
+    email,
+    password,
+  });
+  const user = getSafeUserProfile(data.user);
+  if (!user) {
+    throw new Error('The authentication service returned an invalid user.');
+  }
+  return user;
+};
+
+export const requestCustomerRegistration = async (values: {
+  name: string;
+  email: string;
+  password: string;
+}) => authApi.post('/api/user-registration', values);
+
+export const verifyCustomerRegistration = async (
+  values: { name: string; email: string; password: string },
+  otp: string
+) =>
+  authApi.post('/api/verify-registration', {
+    ...values,
+    otp,
+  });
+
+export const getCurrentUser = async () => {
+  const { data } = await authApi.get<{ user?: unknown }>(
+    '/api/auth/logged-in-user'
+  );
+  const user = getSafeUserProfile(data.user);
+  if (!user) {
+    throw new Error('The authentication service returned an invalid user.');
+  }
+  return user;
+};
+
 export const getApiErrorMessage = (error: unknown) => {
   if (
     axios.isAxiosError(error) &&
@@ -116,7 +163,15 @@ export const getApiErrorMessage = (error: unknown) => {
 
 export const getPostLoginPath = (search: string) => {
   const requestedPath = new URLSearchParams(search).get('next');
-  return requestedPath?.startsWith('/') && !requestedPath.startsWith('//')
-    ? requestedPath
+  if (
+    !requestedPath?.startsWith('/') ||
+    requestedPath.startsWith('//')
+  ) {
+    return '/account';
+  }
+
+  const resolvedPath = new URL(requestedPath, 'http://localhost');
+  return resolvedPath.origin === 'http://localhost'
+    ? `${resolvedPath.pathname}${resolvedPath.search}${resolvedPath.hash}`
     : '/account';
 };

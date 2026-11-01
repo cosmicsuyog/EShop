@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import {
-  authApi,
   getApiErrorMessage,
   getPostLoginPath,
+  loginCustomer,
+  requestCustomerRegistration,
+  verifyCustomerRegistration,
 } from '../lib/authApi';
 import { StoreHeader } from '../components/StoreHeader';
 
@@ -60,7 +62,7 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     try {
       if (!isVerificationStep) {
-        await authApi.post('/api/user-registration', {
+        await requestCustomerRegistration({
           ...values,
           email: values.email.trim(),
         });
@@ -68,18 +70,14 @@ export default function RegisterPage() {
         return;
       }
 
-      await authApi.post('/api/verify-registration', {
-        ...values,
-        email: values.email.trim(),
-        otp,
-      });
+      await verifyCustomerRegistration(
+        { ...values, email: values.email.trim() },
+        otp
+      );
       setIsRegistered(true);
 
       try {
-        await authApi.post('/api/login-user', {
-          email: values.email.trim(),
-          password: values.password,
-        });
+        await loginCustomer(values.email.trim(), values.password);
         window.dispatchEvent(new Event('auth:session-changed'));
         router.replace(getPostLoginPath(window.location.search));
       } catch {
@@ -114,6 +112,11 @@ export default function RegisterPage() {
         {isRegistered ? (
           <div className="auth-success" role="status">
             <p>Your account has been created successfully.</p>
+            {error && (
+              <p className="auth-error" role="alert">
+                {error}
+              </p>
+            )}
             <Link href="/login">Sign in to continue</Link>
           </div>
         ) : (

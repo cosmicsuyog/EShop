@@ -7,9 +7,14 @@ import {
 } from 'axios';
 import {
   authApi,
+  getApiErrorMessage,
+  getCurrentUser,
   getPostLoginPath,
   isSafeUser,
+  loginCustomer,
+  requestCustomerRegistration,
   SafeUser,
+  verifyCustomerRegistration,
 } from './authApi';
 
 const makeResponse = (
@@ -100,11 +105,138 @@ describe('auth API client', () => {
         '/api/user-registration',
         '/api/verify-registration',
         '/api/auth/refresh-token',
+        '/api/auth/logout-user',
       ].map((path) => authApi.post(path).catch(() => undefined))
     );
 
-    expect(requestedPaths).toHaveLength(4);
+    expect(requestedPaths).toHaveLength(5);
     expect(refreshRequestCount).toBe(1);
+  });
+
+  it('logs in with credentials and returns only safe profile data', async () => {
+    let requestConfig: InternalAxiosRequestConfig | undefined;
+    authApi.defaults.adapter = async (config) => {
+      requestConfig = config;
+      return makeResponse(config, 200, {
+        user: {
+          id: 'user-1',
+          email: 'customer@example.com',
+          name: 'Customer',
+          password: 'must-not-be-retained',
+        },
+      });
+    };
+
+    await expect(
+      loginCustomer('customer@example.com', 'password')
+    ).resolves.toEqual({
+      id: 'user-1',
+      email: 'customer@example.com',
+      name: 'Customer',
+    });
+    expect(requestConfig?.url).toBe('/api/login-user');
+    expect(requestConfig?.withCredentials).toBe(true);
+    expect(JSON.parse(requestConfig?.data as string)).toEqual({
+      email: 'customer@example.com',
+      password: 'password',
+    });
+  });
+
+  it('handles invalid login credentials without refreshing', async () => {
+    let refreshCount = 0;
+    authApi.defaults.adapter = async (config) => {
+      if (config.url === '/api/auth/refresh-token') {
+        refreshCount += 1;
+      }
+      return unauthorized(config);
+    };
+
+    await expect(
+      loginCustomer('customer@example.com', 'wrong-password')
+    ).rejects.toMatchObject({ response: { status: 401 } });
+    expect(refreshCount).toBe(0);
+  });
+
+  it('sends the backend two-step OTP registration contract', async () => {
+    const requests: Array<{ path: string; body: unknown }> = [];
+    authApi.defaults.adapter = async (config) => {
+      requests.push({
+        path: config.url ?? '',
+        body: JSON.parse(config.data as string),
+      });
+      return makeResponse(config, 200, { success: true });
+    };
+
+    const values = {
+      name: 'Customer',
+      email: 'customer@example.com',
+      password: 'password',
+    };
+    await requestCustomerRegistration(values);
+    await verifyCustomerRegistration(values, '1234');
+
+    expect(requests).toEqual([
+      { path: '/api/user-registration', body: values },
+      { path: '/api/verify-registration', body: { ...values, otp: '1234' } },
+    ]);
+  });
+
+  it('returns registration and verification server errors to the UI', async () => {
+    authApi.defaults.adapter = async (config) => {
+      const response = makeResponse(config, 400, {
+        message: 'User already exists with this email!',
+      });
+      return Promise.reject(
+        new AxiosError(
+          'Bad Request',
+          AxiosError.ERR_BAD_REQUEST,
+          config,
+          undefined,
+          response
+        )
+      );
+    };
+
+    await expect(
+      requestCustomerRegistration({
+        name: 'Customer',
+        email: 'customer@example.com',
+        password: 'password',
+      })
+    ).rejects.toMatchObject({ response: { status: 400 } });
+    try {
+      await verifyCustomerRegistration(
+        {
+          name: 'Customer',
+          email: 'customer@example.com',
+          password: 'password',
+        },
+        '1234'
+      );
+      throw new Error('Verification should have failed.');
+    } catch (error) {
+      expect(getApiErrorMessage(error)).toBe(
+        'User already exists with this email!'
+      );
+    }
+  });
+
+  it('restores a safe current-user profile without sensitive fields', async () => {
+    authApi.defaults.adapter = async (config) =>
+      makeResponse(config, 200, {
+        user: {
+          id: 'user-1',
+          email: 'customer@example.com',
+          name: 'Customer',
+          password: 'must-not-be-retained',
+        },
+      });
+
+    await expect(getCurrentUser()).resolves.toEqual({
+      id: 'user-1',
+      email: 'customer@example.com',
+      name: 'Customer',
+    });
   });
 
   it('retries a protected request no more than once', async () => {
@@ -160,5 +292,6 @@ describe('auth API client', () => {
     );
     expect(getPostLoginPath('?next=%2Faccount')).toBe('/account');
     expect(getPostLoginPath('?next=%2F%2Fexample.com')).toBe('/account');
+    expect(getPostLoginPath('?next=%2F%5C%5Cexample.com')).toBe('/account');
   });
 });

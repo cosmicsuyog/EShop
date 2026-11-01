@@ -72,3 +72,30 @@ export const refreshUserAccessToken = async (
     return next(error);
   }
 };
+
+export const logoutUser = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (req.get('origin') !== trustedUserInterfaceOrigin) {
+    return next(
+      new ForbiddenError('Logout requests must come from the storefront.')
+    );
+  }
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none' as const,
+    path: '/',
+  };
+  res.clearCookie('accessToken', cookieOptions);
+  res.clearCookie('refreshToken', cookieOptions);
+
+  return res.status(200).json({
+    success: true,
+    message:
+      'Signed out on this browser. Previously issued access tokens are not revoked.',
+  });
+};

@@ -2,25 +2,36 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import {
-  authApi,
   getApiErrorMessage,
   getPostLoginPath,
-  isSafeUser,
+  loginCustomer,
 } from '../lib/authApi';
 import { StoreHeader } from '../components/StoreHeader';
-
-type LoginResponse = {
-  user?: unknown;
-};
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const logoutState = new URLSearchParams(window.location.search).get(
+      'logout'
+    );
+    if (logoutState === 'success') {
+      setNotice(
+        'You have signed out on this browser. Previously issued access tokens are not revoked.'
+      );
+    } else if (logoutState === 'failed') {
+      setError(
+        'We could not confirm sign out. Your server session may still be active.'
+      );
+    }
+  }, []);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -38,14 +49,7 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      const { data } = await authApi.post<LoginResponse>('/api/login-user', {
-        email: normalizedEmail,
-        password,
-      });
-
-      if (!isSafeUser(data.user)) {
-        throw new Error('The authentication service returned an invalid user.');
-      }
+      await loginCustomer(normalizedEmail, password);
 
       window.dispatchEvent(new Event('auth:session-changed'));
       router.replace(getPostLoginPath(window.location.search));
@@ -65,6 +69,12 @@ export default function LoginPage() {
         <p className="auth-intro">
           Sign in to continue to your EShop account.
         </p>
+
+        {notice && (
+          <p className="auth-notice" role="status">
+            {notice}
+          </p>
+        )}
 
         <form className="auth-form" onSubmit={submit} noValidate>
           <label htmlFor="login-email">Email address</label>
