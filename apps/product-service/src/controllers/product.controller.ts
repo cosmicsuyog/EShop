@@ -14,6 +14,7 @@ import {
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+const MAX_SEARCH_LENGTH = 100;
 
 const parsePositiveInteger = (value: unknown) => {
   if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) {
@@ -82,6 +83,7 @@ export const getCatalogProducts = async (
   try {
     const category = req.query.category;
     const subcategory = req.query.subcategory;
+    const searchParam = req.query.q;
     const page =
       req.query.page === undefined
         ? DEFAULT_PAGE
@@ -117,6 +119,18 @@ export const getCatalogProducts = async (
       );
     }
 
+    if (
+      searchParam !== undefined &&
+      (typeof searchParam !== 'string' ||
+        searchParam.length > MAX_SEARCH_LENGTH)
+    ) {
+      return next(
+        new ValidationError(
+          `Search query must be a string of at most ${MAX_SEARCH_LENGTH} characters.`
+        )
+      );
+    }
+
     if (page === undefined || limit === undefined || limit > MAX_LIMIT) {
       return next(
         new ValidationError(
@@ -126,14 +140,15 @@ export const getCatalogProducts = async (
     }
 
     if (!Number.isSafeInteger((page - 1) * limit)) {
-      return next(
-        new ValidationError('The requested page is too large.')
-      );
+      return next(new ValidationError('The requested page is too large.'));
     }
 
     const [products, total] = await listCatalogProducts(
       typeof category === 'string' ? category.trim() : undefined,
       typeof subcategory === 'string' ? subcategory.trim() : undefined,
+      typeof searchParam === 'string' && searchParam.trim().length > 0
+        ? searchParam.trim()
+        : undefined,
       page,
       limit
     );

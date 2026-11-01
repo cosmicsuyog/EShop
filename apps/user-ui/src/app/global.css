@@ -124,6 +124,65 @@ p {
   padding-bottom: 4px;
 }
 
+.catalog-search {
+  margin-bottom: 24px;
+}
+
+.catalog-search-label {
+  color: #5e6057;
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 8px;
+}
+
+.catalog-search-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.catalog-search-controls input {
+  background: #fff;
+  border: 1px solid #dedbd2;
+  border-radius: 5px;
+  color: #2f352e;
+  flex: 1 1 260px;
+  font: inherit;
+  min-height: 42px;
+  padding: 9px 12px;
+}
+
+.catalog-search-controls input:focus-visible,
+.catalog-search-submit:focus-visible,
+.catalog-search-clear:focus-visible {
+  outline: 3px solid rgba(49, 87, 68, 0.35);
+  outline-offset: 2px;
+}
+
+.catalog-search-submit {
+  background: #315744;
+  border: 1px solid #315744;
+  border-radius: 5px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  min-height: 42px;
+  padding: 9px 18px;
+}
+
+.catalog-search-submit:hover {
+  background: #244332;
+}
+
+.catalog-search-clear {
+  color: #315744;
+  font-size: 0.82rem;
+  padding: 9px 4px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .category-nav {
   display: flex;
   flex-wrap: wrap;

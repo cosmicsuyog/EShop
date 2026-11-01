@@ -44,6 +44,7 @@ type CatalogSearchParams = {
   category?: string | string[];
   subcategory?: string | string[];
   page?: string | string[];
+  q?: string | string[];
 };
 
 type CatalogResult = {
@@ -160,32 +161,38 @@ const formatPrice = (price: number) =>
     maximumFractionDigits: 2,
   }).format(price);
 
-const catalogPageHref = (
-  page: number,
-  category?: string,
-  subcategory?: string
-) => {
-  const search = new URLSearchParams({ page: String(page) });
+const catalogHref = ({
+  page,
+  category,
+  subcategory,
+  searchTerm,
+}: {
+  page?: number;
+  category?: string;
+  subcategory?: string;
+  searchTerm?: string;
+}) => {
+  const search = new URLSearchParams();
+  if (page) {
+    search.set('page', String(page));
+  }
   if (category) {
     search.set('category', category);
   }
   if (subcategory) {
     search.set('subcategory', subcategory);
   }
-  return `/?${search.toString()}`;
-};
-
-const catalogSubcategoryHref = (category: string, subcategory?: string) => {
-  const search = new URLSearchParams({ category });
-  if (subcategory) {
-    search.set('subcategory', subcategory);
+  if (searchTerm) {
+    search.set('q', searchTerm);
   }
-  return `/?${search.toString()}`;
+  const query = search.toString();
+  return query ? `/?${query}` : '/';
 };
 
 async function loadCatalog(
   category: string | undefined,
   subcategory: string | undefined,
+  searchTerm: string | undefined,
   page: number
 ): Promise<CatalogResult> {
   try {
@@ -198,6 +205,9 @@ async function loadCatalog(
     }
     if (subcategory) {
       endpoint.searchParams.set('subcategory', subcategory);
+    }
+    if (searchTerm) {
+      endpoint.searchParams.set('q', searchTerm);
     }
     const response = await fetch(endpoint, { cache: 'no-store' });
     if (!response.ok) {
@@ -300,6 +310,14 @@ export default async function Index({
     typeof subcategoryParam === 'string' && !invalidSubcategory
       ? subcategoryParam.trim()
       : undefined;
+  const searchParam = params.q;
+  const invalidSearch =
+    searchParam !== undefined &&
+    (typeof searchParam !== 'string' || searchParam.length > 100);
+  const searchTerm =
+    typeof searchParam === 'string' && !invalidSearch
+      ? searchParam.trim() || undefined
+      : undefined;
   const pageParam = params.page;
   const page =
     typeof pageParam === 'string' && /^[1-9]\d*$/.test(pageParam)
@@ -312,13 +330,18 @@ export default async function Index({
       !Number.isSafeInteger((page - 1) * PAGE_SIZE));
   const currentPage = page && !invalidPage ? page : 1;
   const catalogPromise =
-    invalidCategory || invalidSubcategory || invalidPage
+    invalidCategory || invalidSubcategory || invalidPage || invalidSearch
       ? Promise.resolve({
           products: [],
           pagination: null,
           error: false,
         })
-      : loadCatalog(selectedCategory, selectedSubcategory, currentPage);
+      : loadCatalog(
+          selectedCategory,
+          selectedSubcategory,
+          searchTerm,
+          currentPage
+        );
   const [
     { products, pagination, error },
     { categories, error: categoriesError },
@@ -352,7 +375,9 @@ export default async function Index({
           <div>
             <p className="catalog-eyebrow">SHOP THE COLLECTION</p>
             <h2 id="products-title">
-              {selectedCategory
+              {searchTerm
+                ? `Search results for "${searchTerm}"`
+                : selectedCategory
                 ? `${selectedCategory} products`
                 : 'Featured products'}
             </h2>
@@ -364,10 +389,51 @@ export default async function Index({
           )}
         </div>
 
+        <form action="/" className="catalog-search" method="get">
+          {selectedCategory && (
+            <input name="category" type="hidden" value={selectedCategory} />
+          )}
+          {selectedSubcategory && (
+            <input
+              name="subcategory"
+              type="hidden"
+              value={selectedSubcategory}
+            />
+          )}
+          <label className="catalog-search-label" htmlFor="catalog-search">
+            Search products
+          </label>
+          <div className="catalog-search-controls">
+            <input
+              autoComplete="off"
+              id="catalog-search"
+              maxLength={100}
+              name="q"
+              placeholder="Search by name, description, or brand"
+              type="search"
+              defaultValue={searchTerm ?? ''}
+            />
+            <button className="catalog-search-submit" type="submit">
+              Search
+            </button>
+            {searchTerm && (
+              <Link
+                className="catalog-search-clear"
+                href={catalogHref({
+                  category: selectedCategory,
+                  subcategory: selectedSubcategory,
+                })}
+              >
+                Clear search
+              </Link>
+            )}
+          </div>
+        </form>
+
         <nav className="category-nav" aria-label="Product categories">
           <a
             className={`category-filter${selectedCategory ? '' : ' is-active'}`}
-            href="/"
+            href={catalogHref({ searchTerm })}
             aria-current={selectedCategory ? undefined : 'page'}
           >
             All products
@@ -377,7 +443,7 @@ export default async function Index({
               className={`category-filter${
                 selectedCategory === category ? ' is-active' : ''
               }`}
-              href={`/?${new URLSearchParams({ category }).toString()}`}
+              href={catalogHref({ category, searchTerm })}
               aria-current={selectedCategory === category ? 'page' : undefined}
               key={category}
             >
@@ -401,7 +467,10 @@ export default async function Index({
               className={`category-filter${
                 selectedSubcategory ? '' : ' is-active'
               }`}
-              href={catalogSubcategoryHref(selectedCategory)}
+              href={catalogHref({
+                category: selectedCategory,
+                searchTerm,
+              })}
               aria-current={selectedSubcategory ? undefined : 'page'}
             >
               All {selectedCategory}
@@ -411,7 +480,11 @@ export default async function Index({
                 className={`category-filter${
                   selectedSubcategory === subcategory ? ' is-active' : ''
                 }`}
-                href={catalogSubcategoryHref(selectedCategory, subcategory)}
+                href={catalogHref({
+                  category: selectedCategory,
+                  subcategory,
+                  searchTerm,
+                })}
                 aria-current={
                   selectedSubcategory === subcategory ? 'page' : undefined
                 }
@@ -429,11 +502,16 @@ export default async function Index({
           </p>
         )}
 
-        {invalidCategory || invalidSubcategory || invalidPage ? (
+        {invalidCategory ||
+        invalidSubcategory ||
+        invalidPage ||
+        invalidSearch ? (
           <div className="catalog-message" role="alert">
             <h3>Invalid catalog filter</h3>
             <p>
-              {invalidPage
+              {invalidSearch
+                ? 'Search terms must be no more than 100 characters.'
+                : invalidPage
                 ? 'Choose a valid positive page number.'
                 : invalidCategory
                 ? 'Choose a category from the available filters.'
@@ -451,11 +529,17 @@ export default async function Index({
         ) : products.length === 0 ? (
           <div className="catalog-message" role="status">
             <h3>
-              {selectedCategory
+              {searchTerm
+                ? `No products matched "${searchTerm}".`
+                : selectedCategory
                 ? `No products found in ${selectedCategory}.`
                 : 'Your next favorite is on its way.'}
             </h3>
-            <p>There are no products to show right now. Check back soon.</p>
+            <p>
+              {searchTerm
+                ? 'Try another search term or clear your search to see more products.'
+                : 'There are no products to show right now. Check back soon.'}
+            </p>
           </div>
         ) : (
           <div className="catalog-grid">
@@ -518,11 +602,12 @@ export default async function Index({
             {currentPage > 1 ? (
               <Link
                 className="pagination-link"
-                href={catalogPageHref(
-                  currentPage - 1,
-                  selectedCategory,
-                  selectedSubcategory
-                )}
+                href={catalogHref({
+                  page: currentPage - 1,
+                  category: selectedCategory,
+                  subcategory: selectedSubcategory,
+                  searchTerm,
+                })}
                 rel="prev"
               >
                 Previous
@@ -541,11 +626,12 @@ export default async function Index({
             {currentPage < pagination.totalPages ? (
               <Link
                 className="pagination-link"
-                href={catalogPageHref(
-                  currentPage + 1,
-                  selectedCategory,
-                  selectedSubcategory
-                )}
+                href={catalogHref({
+                  page: currentPage + 1,
+                  category: selectedCategory,
+                  subcategory: selectedSubcategory,
+                  searchTerm,
+                })}
                 rel="next"
               >
                 Next

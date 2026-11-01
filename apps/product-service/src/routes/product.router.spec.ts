@@ -397,6 +397,207 @@ describe('product catalog routes', () => {
     });
   });
 
+  it('searches product titles case-insensitively', async () => {
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(0);
+
+    await getProducts('/api/products?q=Backpack');
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            {
+              title: {
+                contains: 'Backpack',
+                mode: 'insensitive',
+              },
+            },
+          ]),
+        }),
+      })
+    );
+  });
+
+  it('searches product descriptions and brand', async () => {
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(0);
+
+    await getProducts('/api/products?q=travel');
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            {
+              title: {
+                contains: 'travel',
+                mode: 'insensitive',
+              },
+            },
+            {
+              short_description: {
+                contains: 'travel',
+                mode: 'insensitive',
+              },
+            },
+            {
+              detailed_description: {
+                contains: 'travel',
+                mode: 'insensitive',
+              },
+            },
+            {
+              brand: {
+                contains: 'travel',
+                mode: 'insensitive',
+              },
+            },
+          ],
+        }),
+      })
+    );
+  });
+
+  it('trims search terms and combines them with category filters', async () => {
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(0);
+
+    await getProducts(
+      '/api/products?q=%20%20backpack%20%20&category=Accessories&subcategory=Bags'
+    );
+
+    const expectedWhere = {
+      isDeleted: false,
+      status: 'Active',
+      category: 'Accessories',
+      subcategory: 'Bags',
+      OR: [
+        {
+          title: {
+            contains: 'backpack',
+            mode: 'insensitive',
+          },
+        },
+        {
+          short_description: {
+            contains: 'backpack',
+            mode: 'insensitive',
+          },
+        },
+        {
+          detailed_description: {
+            contains: 'backpack',
+            mode: 'insensitive',
+          },
+        },
+        {
+          brand: {
+            contains: 'backpack',
+            mode: 'insensitive',
+          },
+        },
+      ],
+    };
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expectedWhere })
+    );
+    expect(count).toHaveBeenCalledWith({ where: expectedWhere });
+  });
+
+  it('ignores empty and whitespace-only search terms', async () => {
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(0);
+
+    await getProducts('/api/products?q=%20%20%20');
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          isDeleted: false,
+          status: 'Active',
+        },
+      })
+    );
+  });
+
+  it('applies search before paginating and counts only matching products', async () => {
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(11);
+
+    const response = await getProducts('/api/products?q=pack&page=2&limit=5');
+
+    expect(JSON.parse(response.body).pagination).toEqual({
+      page: 2,
+      limit: 5,
+      total: 11,
+      totalPages: 3,
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 5,
+        take: 5,
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            {
+              title: {
+                contains: 'pack',
+                mode: 'insensitive',
+              },
+            },
+          ]),
+        }),
+      })
+    );
+    expect(count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            {
+              title: {
+                contains: 'pack',
+                mode: 'insensitive',
+              },
+            },
+          ]),
+        }),
+      })
+    );
+  });
+
+  it('returns an empty result and zero pages when a search has no matches', async () => {
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(0);
+
+    const response = await getProducts('/api/products?q=missing-product');
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      products: [],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0,
+      },
+    });
+  });
+
+  it('rejects repeated and overlong search query parameters', async () => {
+    for (const path of [
+      '/api/products?q=bag&q=pack',
+      `/api/products?q=${'a'.repeat(101)}`,
+    ]) {
+      const response = await getProducts(path);
+
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).message).toContain('Search query');
+    }
+
+    expect(findMany).not.toHaveBeenCalled();
+    expect(count).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['/api/products?page=0', 'page=0'],
     ['/api/products?page=1.5', 'fractional page'],
@@ -437,7 +638,7 @@ describe('product catalog routes', () => {
   it('forwards database errors to the error middleware', async () => {
     findMany.mockRejectedValue(new Error('database unavailable'));
 
-    const response = await getProducts();
+    const response = await getProducts('/api/products?q=backpack');
 
     expect(response.statusCode).toBe(500);
     expect(JSON.parse(response.body)).toEqual({

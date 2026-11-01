@@ -34,6 +34,7 @@ const catalogProductDetailSelect = {
 export const listCatalogProducts = (
   category: string | undefined,
   subcategory: string | undefined,
+  searchTerm: string | undefined,
   page: number,
   limit: number
 ) => {
@@ -42,6 +43,36 @@ export const listCatalogProducts = (
     status: 'Active' as const,
     ...(category ? { category } : {}),
     ...(subcategory ? { subcategory } : {}),
+    ...(searchTerm
+      ? {
+          OR: [
+            {
+              title: {
+                contains: searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+            {
+              short_description: {
+                contains: searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+            {
+              detailed_description: {
+                contains: searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+            {
+              brand: {
+                contains: searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          ],
+        }
+      : {}),
   };
 
   return Promise.all([
