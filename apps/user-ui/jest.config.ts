@@ -11,8 +11,8 @@ export default {
   preset: '../../jest.preset.cjs',
   testEnvironment: 'node',
   transform: {
-    '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig],
+    '^.+\\.[tj]sx?$': ['@swc/jest', swcJestConfig],
   },
-  moduleFileExtensions: ['ts', 'js', 'html'],
+  moduleFileExtensions: ['tsx', 'ts', 'js', 'html'],
   coverageDirectory: '../../test-output/jest/coverage/user-ui',
 };

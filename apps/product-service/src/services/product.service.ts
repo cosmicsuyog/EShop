@@ -28,7 +28,6 @@ const catalogProductSelect = {
 
 const catalogProductDetailSelect = {
   ...catalogProductSelect,
-  id: false,
 } as const;
 
 export const listCatalogProducts = (

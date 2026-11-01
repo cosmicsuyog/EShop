@@ -648,6 +648,7 @@ describe('product catalog routes', () => {
 
   it('returns an active product by slug', async () => {
     const product = {
+      id: '507f1f77bcf86cd799439011',
       title: 'Canvas Backpack',
       slug: 'canvas-backpack',
       category: 'Accessories',
@@ -688,7 +689,7 @@ describe('product catalog routes', () => {
           status: 'Active',
         },
         select: expect.objectContaining({
-          id: false,
+          id: true,
           slug: true,
           detailed_description: true,
           images: {

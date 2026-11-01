@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { StoreHeader } from '../../components/StoreHeader';
 import { notFound } from 'next/navigation';
 import ProductImages from '../../components/ProductImages';
+import { ProductPurchaseActions } from '../../components/ProductPurchaseActions';
 
 type Product = {
+  id: string;
   images: ProductImage[];
   slug: string;
   title: string;
@@ -68,6 +70,7 @@ const isProduct = (value: unknown): value is Product => {
   return (
     Array.isArray(product.images) &&
     product.images.every(isProductImage) &&
+    typeof product.id === 'string' &&
     typeof product.slug === 'string' &&
     typeof product.title === 'string' &&
     typeof product.category === 'string' &&
@@ -204,6 +207,11 @@ export default async function ProductPage({
               ? `${product.stock} available`
               : 'Currently out of stock'}
           </div>
+          <ProductPurchaseActions
+            productId={product.id}
+            productSlug={product.slug}
+            stock={product.stock}
+          />
 
           <section className="detail-section" aria-labelledby="description">
             <h2 id="description">Description</h2>

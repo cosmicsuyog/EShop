@@ -8,7 +8,7 @@ import { useAuth } from './AuthProvider';
 
 export function StoreHeader() {
   const router = useRouter();
-  const { user, status, clearSession } = useAuth();
+  const { user, status, cart, clearSession } = useAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const signOut = async () => {
@@ -33,6 +33,13 @@ export function StoreHeader() {
       </Link>
       <span className="store-header-note">Thoughtful finds, everyday.</span>
       <nav className="auth-header-actions" aria-label="Account">
+        <Link
+          aria-label={`Cart, ${cart?.itemCount ?? 0} items`}
+          className="auth-header-link cart-header-link"
+          href="/cart"
+        >
+          Cart <span className="cart-count">{cart?.itemCount ?? 0}</span>
+        </Link>
         {status === 'loading' ? (
           <span className="auth-header-status" role="status">
             Checking account…
