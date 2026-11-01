@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { StoreHeader } from './components/StoreHeader';
 import ProductImages from './components/ProductImages';
 
 type CatalogProduct = {
@@ -354,21 +355,7 @@ export default async function Index({
 
   return (
     <main className="store-shell">
-      <header className="store-header">
-        <a className="store-brand" href="/" aria-label="EShop home">
-          <span className="store-brand-mark">E</span>
-          <span>eshop</span>
-        </a>
-        <span className="store-header-note">Thoughtful finds, everyday.</span>
-        <nav className="auth-header-actions" aria-label="Account">
-          <a className="auth-header-link" href="/login">
-            Sign in
-          </a>
-          <a className="auth-header-link" href="/register">
-            Create account
-          </a>
-        </nav>
-      </header>
+      <StoreHeader />
 
       <section className="catalog-intro" aria-labelledby="catalog-title">
         <p className="catalog-eyebrow">THE EVERYDAY EDIT</p>

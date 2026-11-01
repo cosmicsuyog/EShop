@@ -9,6 +9,7 @@ import {
   getPostLoginPath,
   isSafeUser,
 } from '../lib/authApi';
+import { StoreHeader } from '../components/StoreHeader';
 
 type LoginResponse = {
   user?: unknown;
@@ -56,15 +57,7 @@ export default function LoginPage() {
 
   return (
     <main className="store-shell">
-      <header className="store-header">
-        <Link className="store-brand" href="/" aria-label="EShop home">
-          <span className="store-brand-mark">E</span>
-          <span>eshop</span>
-        </Link>
-        <Link className="auth-header-link" href="/">
-          Continue shopping
-        </Link>
-      </header>
+      <StoreHeader />
 
       <section className="auth-panel" aria-labelledby="login-title">
         <p className="catalog-eyebrow">WELCOME BACK</p>

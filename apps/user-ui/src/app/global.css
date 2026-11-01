@@ -733,6 +733,11 @@ p {
   margin-left: auto;
 }
 
+.auth-header-status {
+  color: #77766f;
+  font-size: 0.82rem;
+}
+
 .auth-header-link:focus-visible,
 .auth-switch a:focus-visible,
 .auth-success a:focus-visible {

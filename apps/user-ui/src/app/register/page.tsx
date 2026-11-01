@@ -8,6 +8,7 @@ import {
   getApiErrorMessage,
   getPostLoginPath,
 } from '../lib/authApi';
+import { StoreHeader } from '../components/StoreHeader';
 
 type RegistrationValues = {
   name: string;
@@ -95,15 +96,7 @@ export default function RegisterPage() {
 
   return (
     <main className="store-shell">
-      <header className="store-header">
-        <Link className="store-brand" href="/" aria-label="EShop home">
-          <span className="store-brand-mark">E</span>
-          <span>eshop</span>
-        </Link>
-        <Link className="auth-header-link" href="/">
-          Continue shopping
-        </Link>
-      </header>
+      <StoreHeader />
 
       <section className="auth-panel" aria-labelledby="register-title">
         <p className="catalog-eyebrow">
