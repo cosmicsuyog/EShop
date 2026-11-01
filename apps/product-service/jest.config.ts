@@ -9,9 +9,15 @@ swcJestConfig.swcrc = false;
 export default {
   displayName: 'product-service',
   preset: '../../jest.preset.cjs',
+  setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
   testEnvironment: 'node',
+  moduleNameMapper: {
+    '^@packages/(.*)\\.js$': '<rootDir>/../../Packages/$1',
+    '^@packages/(.*)$': '<rootDir>/../../Packages/$1',
+    '^([.]{1,2}/.*)\\.js$': '$1',
+  },
   transform: {
-    '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig],
+    '^.+\\.ts$': ['@swc/jest', swcJestConfig],
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
   coverageDirectory: 'test-output/jest/coverage',

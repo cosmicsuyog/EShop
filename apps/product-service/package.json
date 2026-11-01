@@ -2,6 +2,7 @@
   "name": "@./product-service",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "nx": {
     "name": "product-service",
     "projectType": "application",
@@ -15,14 +16,18 @@
           "platform": "node",
           "outputPath": "apps/product-service/dist",
           "format": ["cjs"],
-          "bundle": false,
+          "bundle": true,
           "main": "apps/product-service/src/main.ts",
           "tsConfig": "apps/product-service/tsconfig.app.json",
+          "external": ["express"],
           "assets": [],
           "esbuildOptions": {
             "sourcemap": true,
+            "alias": {
+              "@packages": "./Packages"
+            },
             "outExtension": {
-              ".js": ".js"
+              ".js": ".cjs"
             }
           }
         },
@@ -33,7 +38,7 @@
             "esbuildOptions": {
               "sourcemap": false,
               "outExtension": {
-                ".js": ".js"
+                ".js": ".cjs"
               }
             }
           }

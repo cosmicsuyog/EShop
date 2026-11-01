@@ -1,4 +1,4 @@
-import { createApp } from './app';
+import { createApp } from './app.js';
 
 const port = process.env.PORT || 6002;
 const server = createApp().listen(port, () => {

@@ -27,3 +27,46 @@ model users {
   updatedAt DateTime @updatedAt
   imagesId  String?  @db.ObjectId
 }
+
+enum productStatus {
+  Active
+  Pending
+  Draft
+}
+
+model shops {
+  id       String     @id @default(auto()) @map("_id") @db.ObjectId
+  name     String
+  category String
+  products products[]
+}
+
+model products {
+  id                   String        @id @default(auto()) @map("_id") @db.ObjectId
+  title                String
+  slug                 String        @unique
+  category             String
+  subcategory          String
+  short_description    String
+  detailed_description String
+  video_url            String?
+  tags                 String[]      @default([])
+  brand                String?
+  colors               String[]      @default([])
+  sizes                String[]      @default([])
+  starting_date        DateTime?
+  ending_date          DateTime?
+  stock                Int
+  sale_price           Float
+  regular_price        Float
+  rattings             Float         @default(0)
+  warranty             String?
+  isDeleted            Boolean       @default(false)
+  cashOnDelivery       String?
+  status               productStatus @default(Active)
+  shopId               String        @db.ObjectId
+  shops                shops         @relation(fields: [shopId], references: [id])
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  deletedAt            DateTime?
+}

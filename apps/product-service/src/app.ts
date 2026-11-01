@@ -1,4 +1,6 @@
 import express from 'express';
+import { errorMiddleware } from '@packages/error-handler/error-middleware.js';
+import productRouter from './routes/product.router.js';
 
 export const createApp = () => {
   const app = express();
@@ -14,6 +16,9 @@ export const createApp = () => {
       message: `Welcome to product-service! Health check - ${Date.now()}`,
     });
   });
+
+  app.use('/api', productRouter);
+  app.use(errorMiddleware);
 
   return app;
 };

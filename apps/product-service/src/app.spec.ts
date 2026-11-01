@@ -1,5 +1,5 @@
 import { request, type Server } from 'node:http';
-import { createApp } from './app';
+import { createApp } from './app.js';
 
 describe('product service', () => {
   let server: Server;

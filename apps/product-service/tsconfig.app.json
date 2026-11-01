@@ -6,11 +6,15 @@
     "rootDir": "../../",
     "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts",
+    "../../Packages/**/*.ts"
+  ],
   "exclude": [
     "out-tsc",
     "dist",
     "jest.config.ts",
+    "src/test-setup.ts",
     "src/**/*.spec.ts",
     "src/**/*.test.ts",
     "eslint.config.js",
