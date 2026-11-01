@@ -3,6 +3,7 @@ jest.mock('@packages/libs/prisma/index.js', () => ({
   default: {
     products: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
     },
   },
 }));

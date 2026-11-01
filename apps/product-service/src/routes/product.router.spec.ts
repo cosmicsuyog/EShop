@@ -2,10 +2,11 @@ import { request, type Server } from 'node:http';
 import prisma from '@packages/libs/prisma/index.js';
 import { createApp } from '../app.js';
 
-describe('GET /api/products', () => {
+describe('product catalog routes', () => {
   let server: Server;
   let port: number;
   const findMany = jest.mocked(prisma.products.findMany);
+  const findFirst = jest.mocked(prisma.products.findFirst);
 
   beforeAll(async () => {
     server = createApp().listen(0);
@@ -25,6 +26,7 @@ describe('GET /api/products', () => {
 
   afterAll(async () => {
     findMany.mockReset();
+    findFirst.mockReset();
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
@@ -32,6 +34,7 @@ describe('GET /api/products', () => {
 
   beforeEach(() => {
     findMany.mockReset();
+    findFirst.mockReset();
   });
 
   const getProducts = (path = '/api/products') =>
@@ -126,6 +129,81 @@ describe('GET /api/products', () => {
     findMany.mockRejectedValue(new Error('database unavailable'));
 
     const response = await getProducts();
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body)).toEqual({
+      error: 'Something wen wrong,please try again!',
+    });
+  });
+
+  it('returns an active product by slug', async () => {
+    const product = {
+      id: '507f1f77bcf86cd799439011',
+      title: 'Canvas Backpack',
+      slug: 'canvas-backpack',
+      category: 'Accessories',
+      subcategory: 'Bags',
+      short_description: 'A durable everyday backpack.',
+      detailed_description: 'A durable backpack with multiple compartments.',
+      video_url: null,
+      tags: ['travel'],
+      brand: 'EShop',
+      colors: ['black'],
+      sizes: ['one-size'],
+      stock: 12,
+      sale_price: 49.99,
+      regular_price: 59.99,
+      rattings: 4.5,
+      warranty: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+    findFirst.mockResolvedValue(product as never);
+
+    const response = await getProducts('/api/products/canvas-backpack');
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      success: true,
+      message: 'Product fetched successfully!',
+      product,
+    });
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          slug: 'canvas-backpack',
+          isDeleted: false,
+          status: 'Active',
+        },
+      })
+    );
+  });
+
+  it('returns 404 when a product slug is not in the active catalog', async () => {
+    findFirst.mockResolvedValue(null);
+
+    const response = await getProducts('/api/products/missing-product');
+
+    expect(response.statusCode).toBe(404);
+    expect(JSON.parse(response.body)).toEqual({
+      status: 'error',
+      message: 'Product not found.',
+    });
+  });
+
+  it('rejects invalid product slugs before querying the database', async () => {
+    const response = await getProducts('/api/products/Invalid%20Slug');
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).message).toContain(
+      'Product slug must contain'
+    );
+    expect(findFirst).not.toHaveBeenCalled();
+  });
+
+  it('forwards product lookup errors to the error middleware', async () => {
+    findFirst.mockRejectedValue(new Error('database unavailable'));
+
+    const response = await getProducts('/api/products/canvas-backpack');
 
     expect(response.statusCode).toBe(500);
     expect(JSON.parse(response.body)).toEqual({

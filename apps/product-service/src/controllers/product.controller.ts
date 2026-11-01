@@ -1,6 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
-import { ValidationError } from '@packages/error-handler/index.js';
-import { listCatalogProducts } from '../services/product.service.js';
+import {
+  NotFoundError,
+  ValidationError,
+} from '@packages/error-handler/index.js';
+import {
+  getCatalogProductBySlug,
+  listCatalogProducts,
+} from '../services/product.service.js';
 
 export const getCatalogProducts = async (
   req: Request,
@@ -31,6 +37,42 @@ export const getCatalogProducts = async (
       success: true,
       message: 'Products fetched successfully!',
       products,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getCatalogProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const { slug } = req.params;
+
+  if (
+    slug.trim().length === 0 ||
+    slug.length > 200 ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
+  ) {
+    return next(
+      new ValidationError(
+        'Product slug must contain lowercase letters, numbers, and single hyphens.'
+      )
+    );
+  }
+
+  try {
+    const product = await getCatalogProductBySlug(slug);
+
+    if (!product) {
+      return next(new NotFoundError('Product not found.'));
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Product fetched successfully!',
+      product,
     });
   } catch (error) {
     return next(error);
