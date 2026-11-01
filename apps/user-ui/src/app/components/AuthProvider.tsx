@@ -12,12 +12,11 @@ import {
 } from 'react';
 import axios from 'axios';
 import { getCurrentUser, SafeUser } from '../lib/authApi';
-
-type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+import type { CustomerSessionStatus } from '../lib/routeAccess';
 
 type AuthContextValue = {
   user: SafeUser | null;
-  status: AuthStatus;
+  status: CustomerSessionStatus;
   error: string | null;
   restoreSession: () => Promise<void>;
   clearSession: () => void;
@@ -27,7 +26,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SafeUser | null>(null);
-  const [status, setStatus] = useState<AuthStatus>('loading');
+  const [status, setStatus] = useState<CustomerSessionStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const restoreGeneration = useRef(0);
 

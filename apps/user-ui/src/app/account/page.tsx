@@ -5,14 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { StoreHeader } from '../components/StoreHeader';
+import { getAccountRouteRedirect } from '../lib/routeAccess';
 
 export default function AccountPage() {
   const router = useRouter();
   const { user, status, error, restoreSession } = useAuth();
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.replace('/login?next=%2Faccount');
+    const redirectPath = getAccountRouteRedirect(status);
+    if (redirectPath) {
+      router.replace(redirectPath);
     }
   }, [router, status]);
 
