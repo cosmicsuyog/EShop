@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import ProductImages from '../../components/ProductImages';
 
 type Product = {
+  images: ProductImage[];
   slug: string;
   title: string;
   category: string;
@@ -20,6 +22,10 @@ type Product = {
   warranty: string | null;
 };
 
+type ProductImage = {
+  url: string;
+};
+
 type ProductResponse = {
   success: true;
   product: Product;
@@ -30,6 +36,27 @@ export const dynamic = 'force-dynamic';
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'string');
 
+const isProductImage = (value: unknown): value is ProductImage => {
+  if (!value || typeof value !== 'object' || !('url' in value)) {
+    return false;
+  }
+  if (typeof value.url !== 'string') {
+    return false;
+  }
+
+  try {
+    const url = new URL(value.url);
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      url.hostname.length > 0 &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
+  } catch {
+    return false;
+  }
+};
+
 const isProduct = (value: unknown): value is Product => {
   if (!value || typeof value !== 'object') {
     return false;
@@ -38,6 +65,8 @@ const isProduct = (value: unknown): value is Product => {
   const product = value as Record<string, unknown>;
 
   return (
+    Array.isArray(product.images) &&
+    product.images.every(isProductImage) &&
     typeof product.slug === 'string' &&
     typeof product.title === 'string' &&
     typeof product.category === 'string' &&
@@ -137,8 +166,13 @@ export default async function ProductPage({
       </nav>
 
       <article className="product-detail">
-        <div className="product-detail-art" aria-hidden="true">
-          <span>{product.category.slice(0, 1).toUpperCase()}</span>
+        <div className="product-detail-art">
+          <ProductImages
+            fallbackLabel={product.category.slice(0, 1).toUpperCase()}
+            images={product.images}
+            title={product.title}
+            variant="detail"
+          />
           {product.stock > 0 ? (
             <span className="product-stock">In stock</span>
           ) : (

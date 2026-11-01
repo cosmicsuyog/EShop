@@ -9,11 +9,13 @@ datasource db {
 }
 
 model images {
-  id      String  @id @default(auto()) @map("_id") @db.ObjectId
-  file_id String
-  url     String
-  userId  String? @unique @db.ObjectId
-  users   users?  @relation(fields: [userId], references: [id])
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  file_id   String
+  url       String
+  userId    String?   @unique @db.ObjectId
+  users     users?    @relation(fields: [userId], references: [id])
+  productId String?   @db.ObjectId
+  products  products? @relation(fields: [productId], references: [id])
 }
 
 model users {
@@ -66,6 +68,7 @@ model products {
   status               productStatus @default(Active)
   shopId               String        @db.ObjectId
   shops                shops         @relation(fields: [shopId], references: [id])
+  images               images[]
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   deletedAt            DateTime?

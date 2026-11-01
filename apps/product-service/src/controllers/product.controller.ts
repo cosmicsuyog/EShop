@@ -8,6 +8,7 @@ import {
   listCatalogCategories,
   listCatalogProducts,
   listCatalogSubcategories,
+  toCatalogProductResponse,
 } from '../services/product.service.js';
 
 const DEFAULT_PAGE = 1;
@@ -140,7 +141,7 @@ export const getCatalogProducts = async (
     return res.status(200).json({
       success: true,
       message: 'Products fetched successfully!',
-      products,
+      products: products.map(toCatalogProductResponse),
       pagination: {
         page,
         limit,
@@ -182,7 +183,7 @@ export const getCatalogProduct = async (
     return res.status(200).json({
       success: true,
       message: 'Product fetched successfully!',
-      product,
+      product: toCatalogProductResponse(product),
     });
   } catch (error) {
     return next(error);

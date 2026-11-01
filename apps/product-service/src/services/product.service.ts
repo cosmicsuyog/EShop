@@ -18,6 +18,11 @@ const catalogProductSelect = {
   regular_price: true,
   rattings: true,
   warranty: true,
+  images: {
+    select: {
+      url: true,
+    },
+  },
   createdAt: true,
 } as const;
 
@@ -81,6 +86,35 @@ export const listCatalogSubcategories = (category: string) =>
       subcategory: true,
     },
   });
+
+const isPublicImageUrl = (value: unknown): value is string => {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      url.hostname.length > 0 &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
+  } catch {
+    return false;
+  }
+};
+
+export const toCatalogProductResponse = <
+  T extends { images: { url: string }[] }
+>(
+  product: T
+) => ({
+  ...product,
+  images: product.images
+    .filter(({ url }) => isPublicImageUrl(url))
+    .map(({ url }) => ({ url })),
+});
 
 export const getCatalogProductBySlug = (slug: string) =>
   prisma.products.findFirst({

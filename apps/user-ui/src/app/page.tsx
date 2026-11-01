@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import ProductImages from './components/ProductImages';
 
 type CatalogProduct = {
+  images: ProductImage[];
   slug: string;
   title: string;
   category: string;
@@ -11,6 +13,10 @@ type CatalogProduct = {
   sale_price: number;
   regular_price: number;
   rattings: number;
+};
+
+type ProductImage = {
+  url: string;
 };
 
 type CatalogResponse = {
@@ -58,6 +64,8 @@ const isCatalogProduct = (value: unknown): value is CatalogProduct => {
   const product = value as Record<string, unknown>;
 
   return (
+    Array.isArray(product.images) &&
+    product.images.every(isProductImage) &&
     typeof product.slug === 'string' &&
     typeof product.title === 'string' &&
     typeof product.category === 'string' &&
@@ -76,6 +84,27 @@ const isPositiveSafeInteger = (value: unknown): value is number =>
 
 const isNonNegativeSafeInteger = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+const isProductImage = (value: unknown): value is ProductImage => {
+  if (!value || typeof value !== 'object' || !('url' in value)) {
+    return false;
+  }
+  if (typeof value.url !== 'string') {
+    return false;
+  }
+
+  try {
+    const url = new URL(value.url);
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      url.hostname.length > 0 &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
+  } catch {
+    return false;
+  }
+};
 
 const isCatalogResponse = (value: unknown): value is CatalogResponse =>
   Boolean(
@@ -437,8 +466,13 @@ export default async function Index({
                 key={product.slug}
               >
                 <article className="product-card">
-                  <div className="product-card-art" aria-hidden="true">
-                    <span>{product.category.slice(0, 1).toUpperCase()}</span>
+                  <div className="product-card-art">
+                    <ProductImages
+                      fallbackLabel={product.category.slice(0, 1).toUpperCase()}
+                      images={product.images}
+                      title={product.title}
+                      variant="card"
+                    />
                     {product.stock > 0 ? (
                       <span className="product-stock">In stock</span>
                     ) : (

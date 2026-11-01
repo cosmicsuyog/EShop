@@ -204,6 +204,10 @@ describe('product catalog routes', () => {
       regular_price: 59.99,
       rattings: 4.5,
       warranty: null,
+      images: [
+        { url: 'https://images.example.com/backpack-front.jpg' },
+        { url: 'https://images.example.com/backpack-side.jpg' },
+      ],
       createdAt: '2026-01-01T00:00:00.000Z',
     };
     findMany.mockResolvedValue([product] as never);
@@ -233,6 +237,13 @@ describe('product catalog routes', () => {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: 0,
         take: 20,
+        select: expect.objectContaining({
+          images: {
+            select: {
+              url: true,
+            },
+          },
+        }),
       })
     );
     expect(count).toHaveBeenCalledWith({
@@ -242,6 +253,75 @@ describe('product catalog routes', () => {
         category: 'Accessories',
       },
     });
+  });
+
+  it('returns an empty image list for products without associated images', async () => {
+    findMany.mockResolvedValue([
+      {
+        id: '507f1f77bcf86cd799439011',
+        title: 'Canvas Backpack',
+        slug: 'canvas-backpack',
+        category: 'Accessories',
+        subcategory: 'Bags',
+        short_description: 'A durable everyday backpack.',
+        detailed_description: 'A durable backpack with multiple compartments.',
+        video_url: null,
+        tags: [],
+        brand: null,
+        colors: [],
+        sizes: [],
+        stock: 12,
+        sale_price: 49.99,
+        regular_price: 59.99,
+        rattings: 0,
+        warranty: null,
+        images: [],
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ] as never);
+    count.mockResolvedValue(1);
+
+    const response = await getProducts();
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).products[0].images).toEqual([]);
+  });
+
+  it('omits invalid image records from catalog responses', async () => {
+    findMany.mockResolvedValue([
+      {
+        id: '507f1f77bcf86cd799439011',
+        title: 'Canvas Backpack',
+        slug: 'canvas-backpack',
+        category: 'Accessories',
+        subcategory: 'Bags',
+        short_description: 'A durable everyday backpack.',
+        detailed_description: 'A durable backpack with multiple compartments.',
+        video_url: null,
+        tags: [],
+        brand: null,
+        colors: [],
+        sizes: [],
+        stock: 12,
+        sale_price: 49.99,
+        regular_price: 59.99,
+        rattings: 0,
+        warranty: null,
+        images: [
+          { url: 'javascript:alert(1)' },
+          { url: '' },
+          { url: 'https://images.example.com/backpack.jpg' },
+        ],
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ] as never);
+    count.mockResolvedValue(1);
+
+    const response = await getProducts();
+
+    expect(JSON.parse(response.body).products[0].images).toEqual([
+      { url: 'https://images.example.com/backpack.jpg' },
+    ]);
   });
 
   it('returns an empty list when the catalog has no products', async () => {
@@ -383,6 +463,10 @@ describe('product catalog routes', () => {
       regular_price: 59.99,
       rattings: 4.5,
       warranty: null,
+      images: [
+        { url: 'https://images.example.com/backpack-front.jpg' },
+        { url: 'https://images.example.com/backpack-side.jpg' },
+      ],
       createdAt: '2026-01-01T00:00:00.000Z',
     };
     findFirst.mockResolvedValue(product as never);
@@ -406,6 +490,11 @@ describe('product catalog routes', () => {
           id: false,
           slug: true,
           detailed_description: true,
+          images: {
+            select: {
+              url: true,
+            },
+          },
         }),
       })
     );
