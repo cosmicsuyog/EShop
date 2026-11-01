@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 type CatalogProduct = {
   slug: string;
   title: string;
@@ -236,44 +238,50 @@ export default async function Index({
         ) : (
           <div className="catalog-grid">
             {products.map((product) => (
-              <article className="product-card" key={product.slug}>
-                <div className="product-card-art" aria-hidden="true">
-                  <span>{product.category.slice(0, 1).toUpperCase()}</span>
-                  {product.stock > 0 ? (
-                    <span className="product-stock">In stock</span>
-                  ) : (
-                    <span className="product-stock product-stock-empty">
-                      Sold out
-                    </span>
-                  )}
-                </div>
-                <div className="product-card-content">
-                  <p className="product-category">
-                    {product.category} <span>/</span> {product.subcategory}
-                  </p>
-                  <h3>{product.title}</h3>
-                  <p className="product-description">
-                    {product.short_description}
-                  </p>
-                  <div className="product-card-footer">
-                    <div className="product-prices">
-                      <strong>{formatPrice(product.sale_price)}</strong>
-                      {product.regular_price > product.sale_price && (
-                        <del>{formatPrice(product.regular_price)}</del>
-                      )}
-                    </div>
-                    <span
-                      className="product-rating"
-                      aria-label={`${product.rattings} out of 5 stars`}
-                    >
-                      ★ {product.rattings.toFixed(1)}
-                    </span>
+              <Link
+                className="product-card-link"
+                href={`/products/${encodeURIComponent(product.slug)}`}
+                key={product.slug}
+              >
+                <article className="product-card">
+                  <div className="product-card-art" aria-hidden="true">
+                    <span>{product.category.slice(0, 1).toUpperCase()}</span>
+                    {product.stock > 0 ? (
+                      <span className="product-stock">In stock</span>
+                    ) : (
+                      <span className="product-stock product-stock-empty">
+                        Sold out
+                      </span>
+                    )}
                   </div>
-                  {product.brand && (
-                    <p className="product-brand">{product.brand}</p>
-                  )}
-                </div>
-              </article>
+                  <div className="product-card-content">
+                    <p className="product-category">
+                      {product.category} <span>/</span> {product.subcategory}
+                    </p>
+                    <h3>{product.title}</h3>
+                    <p className="product-description">
+                      {product.short_description}
+                    </p>
+                    <div className="product-card-footer">
+                      <div className="product-prices">
+                        <strong>{formatPrice(product.sale_price)}</strong>
+                        {product.regular_price > product.sale_price && (
+                          <del>{formatPrice(product.regular_price)}</del>
+                        )}
+                      </div>
+                      <span
+                        className="product-rating"
+                        aria-label={`${product.rattings} out of 5 stars`}
+                      >
+                        ★ {product.rattings.toFixed(1)}
+                      </span>
+                    </div>
+                    {product.brand && (
+                      <p className="product-brand">{product.brand}</p>
+                    )}
+                  </div>
+                </article>
+              </Link>
             ))}
           </div>
         )}
