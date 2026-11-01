@@ -5,69 +5,73 @@ import { sendEmail } from './sendMail';
 import { NextFunction, Response, Request } from 'express';
 import prisma from '@packages/libs/prisma';
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const validationRegistrationData = (
-  data: any,
+  data: unknown,
   userType: 'user' | 'seller'
 ) => {
-  const { name, email, password, phone_number, country } = data;
+  if (!data || typeof data !== 'object') {
+    throw new ValidationError('Missing required fields!');
+  }
+
+  const { name, email, password, phone_number, country } = data as Record<
+    string,
+    unknown
+  >;
 
   if (
-    !name ||
-    !email ||
+    typeof name !== 'string' ||
+    !name.trim() ||
+    typeof email !== 'string' ||
+    !email.trim() ||
+    typeof password !== 'string' ||
     !password ||
-    (userType === 'seller' && (!phone_number || !country))
+    (userType === 'seller' &&
+      (typeof phone_number !== 'string' ||
+        !phone_number.trim() ||
+        typeof country !== 'string' ||
+        !country.trim()))
   ) {
     throw new ValidationError(`Missing required fields!`);
   }
 
-  if (!emailRegex.test(email)) {
+  if (!emailRegex.test(email.trim())) {
     throw new ValidationError('Invalid email format');
   }
 };
 
 export const checkOtpRestrictions = async (
-  email: string,
-  next: NextFunction
-) => {
+  email: string
+): Promise<void> => {
   if (await redis.get(`otp_lock:${email}`)) {
-    return next(
-      new ValidationError(
-        'Account locked due to multiple failed attempts! Try again after 30 minutes'
-      )
+    throw new ValidationError(
+      'Account locked due to multiple failed attempts! Try again after 30 minutes'
     );
   }
 
   if (await redis.get(`otp_spam_lock:${email}`)) {
-    return next(
-      new ValidationError(
-        'Too many OTP requests! Please wait 1 hour before requesting again.'
-      )
+    throw new ValidationError(
+      'Too many OTP requests! Please wait 1 hour before requesting again.'
     );
   }
 
   if (await redis.get(`otp_cooldown:${email}`)) {
-    return next(
-      new ValidationError('Please wait 1minute before requesting a new OTP!')
-    );
+    throw new ValidationError('Please wait 1 minute before requesting a new OTP!');
   }
 };
 
 export const trackOtpRequests = async (
-  email: string,
-  next: NextFunction
-): Promise<void | Response> => {
+  email: string
+): Promise<void> => {
   const otpRequestKey = `otp_requests_count:${email}`;
   const otpRequests: number = parseInt((await redis.get(otpRequestKey)) || '0');
 
   if (otpRequests >= 2) {
     await redis.set(`otp_spam_lock:${email}`, 'locked', 'EX', 3600); // Lock for 1 hour
 
-    return next(
-      new ValidationError(
-        'Too many requests! Please wait 1 hour before requesting again.'
-      )
+    throw new ValidationError(
+      'Too many requests! Please wait 1 hour before requesting again.'
     );
   }
 
@@ -81,7 +85,13 @@ export const sendOtp = async (
 ): Promise<void | Response> => {
   const otp = crypto.randomInt(1000, 9999).toString();
 
-  await sendEmail(email, 'Verify your email', template, { name, otp });
+  const sent = await sendEmail(email, 'Verify your email', template, {
+    name,
+    otp,
+  });
+  if (!sent) {
+    throw new Error('Verification email could not be sent.');
+  }
 
   await redis.set(`otp:${email}`, otp, 'EX', 300);
   await redis.set(`otp_cooldown:${email}`, 'true', 'EX', 60); // otp_cooldown: How long to wait before allowing sending another otp request
@@ -89,8 +99,7 @@ export const sendOtp = async (
 
 export const verifyOtp = async (
   email: string,
-  otp: string,
-  next: NextFunction
+  otp: string
 ): Promise<void | Response> => {
   const storedOtp = await redis.get(`otp:${email}`);
 
@@ -137,8 +146,8 @@ export const handleForgotPassword = async (
       (await prisma.users.findUnique({ where: { email } }));
 
     if (!user) throw new ValidationError(`${userType} not found!`);
-    await checkOtpRestrictions(email, next);
-    await trackOtpRequests(email, next);
+    await checkOtpRestrictions(email);
+    await trackOtpRequests(email);
 
     // Generate OTP and send Email
     await sendOtp(user.name, email, 'forgot-password-user-mail');
@@ -146,7 +155,7 @@ export const handleForgotPassword = async (
       message: 'OTP sent to email.Please verify your account.',
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -161,13 +170,13 @@ export const verifyForgotPasswordOtp = async(
         if(!email || !otp){
           throw new ValidationError("Email and otp is required!")
         }
-        await verifyOtp(email,otp,next);
+        await verifyOtp(email, otp);
         res
           .status(200)
           .json({
             message:"OTP verified. You can now reset your password."
           })
     } catch (error) {
-        next(error)
+        return next(error)
     }
 }

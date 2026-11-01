@@ -17,6 +17,21 @@ jest.mock('../controllers/auth.controller', () => {
   };
 });
 
+jest.mock('../controllers/seller.controller', () => {
+  const handler = (_request: Request, response: Response) =>
+    response.sendStatus(204);
+
+  return {
+    createShop: handler,
+    getLoggedInSeller: handler,
+    loginSeller: handler,
+    logoutSeller: handler,
+    refreshSellerAccessToken: handler,
+    registerSeller: handler,
+    verifySeller: handler,
+  };
+});
+
 describe('auth router', () => {
   let server: Server;
   let port: number;

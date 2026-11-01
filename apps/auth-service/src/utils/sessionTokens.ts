@@ -12,6 +12,14 @@ type UserTokenClaims = jwt.JwtPayload & {
   tokenUse: UserTokenUse;
 };
 
+export type SellerTokenUse = 'access' | 'refresh';
+
+type SellerTokenClaims = jwt.JwtPayload & {
+  id: string;
+  role: 'seller';
+  tokenUse: SellerTokenUse;
+};
+
 export const signUserToken = (
   userId: string,
   tokenUse: UserTokenUse,
@@ -26,6 +34,27 @@ export const signUserToken = (
   }
 
   return jwt.sign({ id: userId, role: 'user', tokenUse }, secret, {
+    expiresIn:
+      tokenUse === 'access'
+        ? ACCESS_TOKEN_TTL_SECONDS
+        : REFRESH_TOKEN_TTL_SECONDS,
+  });
+};
+
+export const signSellerToken = (
+  sellerId: string,
+  tokenUse: SellerTokenUse,
+  secret: string
+) => {
+  if (!secret) {
+    throw new Error(
+      `${
+        tokenUse === 'access' ? 'ACCESS' : 'REFRESH'
+      }_TOKEN_SECRET is not configured.`
+    );
+  }
+
+  return jwt.sign({ id: sellerId, role: 'seller', tokenUse }, secret, {
     expiresIn:
       tokenUse === 'access'
         ? ACCESS_TOKEN_TTL_SECONDS
@@ -69,4 +98,42 @@ export const verifyUserToken = (
   }
 
   return payload as UserTokenClaims;
+};
+
+export const verifySellerToken = (
+  token: string,
+  secret: string | undefined,
+  tokenUse: SellerTokenUse
+): SellerTokenClaims => {
+  if (!secret) {
+    throw new Error(
+      `${
+        tokenUse === 'access' ? 'ACCESS' : 'REFRESH'
+      }_TOKEN_SECRET is not configured.`
+    );
+  }
+
+  let payload: string | jwt.JwtPayload;
+  try {
+    payload = jwt.verify(token, secret);
+  } catch (error) {
+    if (error instanceof JsonWebTokenError) {
+      throw new AuthError(`Invalid or expired ${tokenUse} token.`);
+    }
+    throw error;
+  }
+
+  if (
+    typeof payload === 'string' ||
+    typeof payload.id !== 'string' ||
+    payload.id.length === 0 ||
+    payload.role !== 'seller' ||
+    payload.tokenUse !== tokenUse ||
+    typeof payload.exp !== 'number' ||
+    payload.exp <= Math.floor(Date.now() / 1000)
+  ) {
+    throw new AuthError(`Invalid ${tokenUse} token.`);
+  }
+
+  return payload as SellerTokenClaims;
 };
