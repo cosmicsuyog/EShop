@@ -5,6 +5,7 @@ import {
 } from '@packages/error-handler/index.js';
 import {
   getCatalogProductBySlug,
+  listCatalogCategories,
   listCatalogProducts,
 } from '../services/product.service.js';
 
@@ -19,6 +20,24 @@ const parsePositiveInteger = (value: unknown) => {
 
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) ? parsed : undefined;
+};
+
+export const getCatalogCategories = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const categories = await listCatalogCategories();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Categories fetched successfully!',
+      categories: categories.map(({ category }) => category),
+    });
+  } catch (error) {
+    return next(error);
+  }
 };
 
 export const getCatalogProducts = async (

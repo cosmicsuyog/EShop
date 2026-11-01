@@ -65,6 +65,55 @@ describe('product catalog routes', () => {
       req.end();
     });
 
+  it('returns distinct active catalog categories in alphabetical order', async () => {
+    findMany.mockResolvedValue([
+      { category: 'Accessories' },
+      { category: 'Home' },
+    ] as never);
+
+    const response = await getProducts('/api/categories');
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      success: true,
+      message: 'Categories fetched successfully!',
+      categories: ['Accessories', 'Home'],
+    });
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        isDeleted: false,
+        status: 'Active',
+      },
+      distinct: ['category'],
+      orderBy: {
+        category: 'asc',
+      },
+      select: {
+        category: true,
+      },
+    });
+  });
+
+  it('returns an empty category list when no active products exist', async () => {
+    findMany.mockResolvedValue([]);
+
+    const response = await getProducts('/api/categories');
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).categories).toEqual([]);
+  });
+
+  it('forwards category lookup errors to the error middleware', async () => {
+    findMany.mockRejectedValue(new Error('database unavailable'));
+
+    const response = await getProducts('/api/categories');
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body)).toEqual({
+      error: 'Something wen wrong,please try again!',
+    });
+  });
+
   it('returns the active catalog products', async () => {
     const product = {
       id: '507f1f77bcf86cd799439011',

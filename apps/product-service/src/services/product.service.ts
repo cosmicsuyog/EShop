@@ -44,6 +44,21 @@ export const listCatalogProducts = (
   ]);
 };
 
+export const listCatalogCategories = () =>
+  prisma.products.findMany({
+    where: {
+      isDeleted: false,
+      status: 'Active',
+    },
+    distinct: ['category'],
+    orderBy: {
+      category: 'asc',
+    },
+    select: {
+      category: true,
+    },
+  });
+
 export const getCatalogProductBySlug = (slug: string) =>
   prisma.products.findFirst({
     where: {
