@@ -153,6 +153,14 @@ export default async function ProductPage({
           <span>eshop</span>
         </Link>
         <span className="store-header-note">Thoughtful finds, everyday.</span>
+        <nav className="auth-header-actions" aria-label="Account">
+          <Link className="auth-header-link" href="/login">
+            Sign in
+          </Link>
+          <Link className="auth-header-link" href="/register">
+            Create account
+          </Link>
+        </nav>
       </header>
 
       <nav className="detail-breadcrumb" aria-label="Breadcrumb">

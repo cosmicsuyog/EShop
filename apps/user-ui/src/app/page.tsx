@@ -360,6 +360,14 @@ export default async function Index({
           <span>eshop</span>
         </a>
         <span className="store-header-note">Thoughtful finds, everyday.</span>
+        <nav className="auth-header-actions" aria-label="Account">
+          <a className="auth-header-link" href="/login">
+            Sign in
+          </a>
+          <a className="auth-header-link" href="/register">
+            Create account
+          </a>
+        </nav>
       </header>
 
       <section className="catalog-intro" aria-labelledby="catalog-title">
