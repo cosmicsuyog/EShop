@@ -1,4 +1,7 @@
-import axios from 'axios';
+import axios, {
+  type AxiosError,
+  type InternalAxiosRequestConfig,
+} from 'axios';
 
 export const authApi = axios.create({
   baseURL:
@@ -8,6 +11,76 @@ export const authApi = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+declare module 'axios' {
+  interface InternalAxiosRequestConfig {
+    _authRetry?: boolean;
+  }
+}
+
+const refreshExcludedPaths = new Set([
+  '/api/login-user',
+  '/api/user-registration',
+  '/api/verify-registration',
+  '/api/auth/refresh-token',
+  '/api/auth/logout-user',
+]);
+
+let refreshPromise: Promise<void> | null = null;
+
+const getRequestPath = (config: InternalAxiosRequestConfig) => {
+  try {
+    return new URL(config.url ?? '', config.baseURL).pathname;
+  } catch {
+    return config.url?.split('?')[0] ?? '';
+  }
+};
+
+const clearClientSession = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('auth:session-cleared'));
+  }
+};
+
+authApi.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const config = error.config as InternalAxiosRequestConfig | undefined;
+    if (
+      !config ||
+      error.response?.status !== 401 ||
+      refreshExcludedPaths.has(getRequestPath(config))
+    ) {
+      return Promise.reject(error);
+    }
+
+    if (config._authRetry) {
+      clearClientSession();
+      return Promise.reject(error);
+    }
+    config._authRetry = true;
+
+    if (!refreshPromise) {
+      refreshPromise = authApi
+        .post('/api/auth/refresh-token')
+        .then(() => undefined)
+        .catch((refreshError: unknown) => {
+          clearClientSession();
+          throw refreshError;
+        })
+        .finally(() => {
+          refreshPromise = null;
+        });
+    }
+
+    try {
+      await refreshPromise;
+      return await authApi.request(config);
+    } catch {
+      return Promise.reject(error);
+    }
+  }
+);
 
 export type SafeUser = {
   id: string;
