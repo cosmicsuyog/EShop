@@ -16,6 +16,12 @@ type CatalogProduct = {
 type CatalogResponse = {
   success: true;
   products: CatalogProduct[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 type CategoriesResponse = {
@@ -25,7 +31,16 @@ type CategoriesResponse = {
 
 type CatalogSearchParams = {
   category?: string | string[];
+  page?: string | string[];
 };
+
+type CatalogResult = {
+  products: CatalogProduct[];
+  pagination: CatalogResponse['pagination'] | null;
+  error: boolean;
+};
+
+const PAGE_SIZE = 12;
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +65,12 @@ const isCatalogProduct = (value: unknown): value is CatalogProduct => {
   );
 };
 
+const isPositiveSafeInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+
+const isNonNegativeSafeInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
 const isCatalogResponse = (value: unknown): value is CatalogResponse =>
   Boolean(
     value &&
@@ -58,7 +79,18 @@ const isCatalogResponse = (value: unknown): value is CatalogResponse =>
       value.success === true &&
       'products' in value &&
       Array.isArray(value.products) &&
-      value.products.every(isCatalogProduct)
+      value.products.every(isCatalogProduct) &&
+      'pagination' in value &&
+      typeof value.pagination === 'object' &&
+      value.pagination !== null &&
+      'page' in value.pagination &&
+      isPositiveSafeInteger(value.pagination.page) &&
+      'limit' in value.pagination &&
+      isPositiveSafeInteger(value.pagination.limit) &&
+      'total' in value.pagination &&
+      isNonNegativeSafeInteger(value.pagination.total) &&
+      'totalPages' in value.pagination &&
+      isNonNegativeSafeInteger(value.pagination.totalPages)
   );
 
 const isCategoriesResponse = (value: unknown): value is CategoriesResponse =>
@@ -78,15 +110,23 @@ const formatPrice = (price: number) =>
     maximumFractionDigits: 2,
   }).format(price);
 
-async function loadCatalog(category?: string): Promise<{
-  products: CatalogProduct[];
-  error: boolean;
-}> {
+const catalogPageHref = (page: number, category?: string) => {
+  const search = new URLSearchParams({ page: String(page) });
+  if (category) {
+    search.set('category', category);
+  }
+  return `/?${search.toString()}`;
+};
+
+async function loadCatalog(
+  category: string | undefined,
+  page: number
+): Promise<CatalogResult> {
   try {
     const gatewayUrl = process.env.API_GATEWAY_URL ?? 'http://localhost:8000';
     const endpoint = new URL('/product/api/products', gatewayUrl);
-    endpoint.searchParams.set('page', '1');
-    endpoint.searchParams.set('limit', '12');
+    endpoint.searchParams.set('page', String(page));
+    endpoint.searchParams.set('limit', String(PAGE_SIZE));
     if (category) {
       endpoint.searchParams.set('category', category);
     }
@@ -100,10 +140,14 @@ async function loadCatalog(category?: string): Promise<{
       throw new Error('Gateway returned an invalid product catalog response');
     }
 
-    return { products: payload.products, error: false };
+    return {
+      products: payload.products,
+      pagination: payload.pagination,
+      error: false,
+    };
   } catch (error) {
     console.error('Unable to load the product catalog.', error);
-    return { products: [], error: true };
+    return { products: [], pagination: null, error: true };
   }
 }
 
@@ -147,8 +191,29 @@ export default async function Index({
     typeof categoryParam === 'string' && !invalidCategory
       ? categoryParam.trim()
       : undefined;
-  const [{ products, error }, { categories, error: categoriesError }] =
-    await Promise.all([loadCatalog(selectedCategory), loadCategories()]);
+  const pageParam = params.page;
+  const page =
+    typeof pageParam === 'string' && /^[1-9]\d*$/.test(pageParam)
+      ? Number(pageParam)
+      : undefined;
+  const invalidPage =
+    pageParam !== undefined &&
+    (page === undefined ||
+      !Number.isSafeInteger(page) ||
+      !Number.isSafeInteger((page - 1) * PAGE_SIZE));
+  const currentPage = page && !invalidPage ? page : 1;
+  const catalogPromise =
+    invalidCategory || invalidPage
+      ? Promise.resolve({
+          products: [],
+          pagination: null,
+          error: false,
+        })
+      : loadCatalog(selectedCategory, currentPage);
+  const [
+    { products, pagination, error },
+    { categories, error: categoriesError },
+  ] = await Promise.all([catalogPromise, loadCategories()]);
 
   return (
     <main className="store-shell">
@@ -213,10 +278,14 @@ export default async function Index({
           </p>
         )}
 
-        {invalidCategory ? (
+        {invalidCategory || invalidPage ? (
           <div className="catalog-message" role="alert">
-            <h3>Invalid category filter</h3>
-            <p>Choose a category from the available filters.</p>
+            <h3>Invalid catalog filter</h3>
+            <p>
+              {invalidPage
+                ? 'Choose a valid positive page number.'
+                : 'Choose a category from the available filters.'}
+            </p>
           </div>
         ) : error ? (
           <div className="catalog-message" role="status">
@@ -284,6 +353,46 @@ export default async function Index({
               </Link>
             ))}
           </div>
+        )}
+
+        {!error && pagination && pagination.totalPages > 0 && (
+          <nav className="catalog-pagination" aria-label="Catalog pages">
+            {currentPage > 1 ? (
+              <Link
+                className="pagination-link"
+                href={catalogPageHref(currentPage - 1, selectedCategory)}
+                rel="prev"
+              >
+                Previous
+              </Link>
+            ) : (
+              <span
+                className="pagination-link is-disabled"
+                aria-disabled="true"
+              >
+                Previous
+              </span>
+            )}
+            <span className="pagination-status" aria-live="polite">
+              Page {currentPage} of {pagination.totalPages}
+            </span>
+            {currentPage < pagination.totalPages ? (
+              <Link
+                className="pagination-link"
+                href={catalogPageHref(currentPage + 1, selectedCategory)}
+                rel="next"
+              >
+                Next
+              </Link>
+            ) : (
+              <span
+                className="pagination-link is-disabled"
+                aria-disabled="true"
+              >
+                Next
+              </span>
+            )}
+          </nav>
         )}
       </section>
 
