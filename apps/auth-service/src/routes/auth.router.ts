@@ -6,9 +6,11 @@ import {
   refreshUserAccessToken,
 } from '../controllers/session.controller';
 import { requireAuthenticatedUser } from '../middleware/auth.middleware';
+import cartRouter from './cart.router';
 
 const router:Router =express.Router();
 
+router.use(cartRouter);
 router.post("/user-registration",userRegistration);
 router.post("/verify-registration",verifyUser);
 router.post("/login-user",loginUser);
