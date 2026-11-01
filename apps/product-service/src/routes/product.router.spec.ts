@@ -217,6 +217,35 @@ describe('product catalog routes', () => {
     );
   });
 
+  it('filters catalog results by subcategory', async () => {
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(0);
+
+    const response = await getProducts(
+      '/api/products?category=Accessories&subcategory=Bags'
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          isDeleted: false,
+          status: 'Active',
+          category: 'Accessories',
+          subcategory: 'Bags',
+        },
+      })
+    );
+    expect(count).toHaveBeenCalledWith({
+      where: {
+        isDeleted: false,
+        status: 'Active',
+        category: 'Accessories',
+        subcategory: 'Bags',
+      },
+    });
+  });
+
   it.each([
     ['/api/products?page=0', 'page=0'],
     ['/api/products?page=1.5', 'fractional page'],
@@ -239,6 +268,17 @@ describe('product catalog routes', () => {
     expect(JSON.parse(response.body)).toMatchObject({
       status: 'error',
       message: expect.stringContaining('Category must be'),
+    });
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns a validation error for an invalid subcategory filter', async () => {
+    const response = await getProducts('/api/products?subcategory=');
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body)).toMatchObject({
+      status: 'error',
+      message: expect.stringContaining('Subcategory must be'),
     });
     expect(findMany).not.toHaveBeenCalled();
   });

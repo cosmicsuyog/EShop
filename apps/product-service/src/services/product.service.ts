@@ -23,6 +23,7 @@ const catalogProductSelect = {
 
 export const listCatalogProducts = (
   category: string | undefined,
+  subcategory: string | undefined,
   page: number,
   limit: number
 ) => {
@@ -30,6 +31,7 @@ export const listCatalogProducts = (
     isDeleted: false,
     status: 'Active' as const,
     ...(category ? { category } : {}),
+    ...(subcategory ? { subcategory } : {}),
   };
 
   return Promise.all([

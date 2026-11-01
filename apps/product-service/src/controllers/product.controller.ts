@@ -47,6 +47,7 @@ export const getCatalogProducts = async (
 ) => {
   try {
     const category = req.query.category;
+    const subcategory = req.query.subcategory;
     const page =
       req.query.page === undefined
         ? DEFAULT_PAGE
@@ -69,6 +70,19 @@ export const getCatalogProducts = async (
       );
     }
 
+    if (
+      subcategory !== undefined &&
+      (typeof subcategory !== 'string' ||
+        subcategory.trim().length === 0 ||
+        subcategory.length > 100)
+    ) {
+      return next(
+        new ValidationError(
+          'Subcategory must be a non-empty string of at most 100 characters.'
+        )
+      );
+    }
+
     if (page === undefined || limit === undefined || limit > MAX_LIMIT) {
       return next(
         new ValidationError(
@@ -85,6 +99,7 @@ export const getCatalogProducts = async (
 
     const [products, total] = await listCatalogProducts(
       typeof category === 'string' ? category.trim() : undefined,
+      typeof subcategory === 'string' ? subcategory.trim() : undefined,
       page,
       limit
     );
