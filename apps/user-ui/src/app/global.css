@@ -124,6 +124,36 @@ p {
   padding-bottom: 4px;
 }
 
+.category-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 0 0 24px;
+}
+
+.category-filter {
+  border: 1px solid #dedbd2;
+  border-radius: 999px;
+  color: #5e6057;
+  font-size: 0.8rem;
+  padding: 8px 14px;
+  transition: background-color 150ms ease, border-color 150ms ease,
+    color 150ms ease;
+}
+
+.category-filter:hover,
+.category-filter.is-active {
+  background: #315744;
+  border-color: #315744;
+  color: #fff;
+}
+
+.category-warning {
+  color: #795f36;
+  font-size: 0.82rem;
+  margin: -8px 0 18px;
+}
+
 .catalog-grid {
   display: grid;
   gap: 22px;

@@ -16,6 +16,15 @@ type CatalogResponse = {
   products: CatalogProduct[];
 };
 
+type CategoriesResponse = {
+  success: true;
+  categories: string[];
+};
+
+type CatalogSearchParams = {
+  category?: string | string[];
+};
+
 export const dynamic = 'force-dynamic';
 
 const isCatalogProduct = (value: unknown): value is CatalogProduct => {
@@ -50,22 +59,35 @@ const isCatalogResponse = (value: unknown): value is CatalogResponse =>
       value.products.every(isCatalogProduct)
   );
 
+const isCategoriesResponse = (value: unknown): value is CategoriesResponse =>
+  Boolean(
+    value &&
+      typeof value === 'object' &&
+      'success' in value &&
+      value.success === true &&
+      'categories' in value &&
+      Array.isArray(value.categories) &&
+      value.categories.every((category) => typeof category === 'string')
+  );
+
 const formatPrice = (price: number) =>
   new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(price);
 
-async function loadCatalog(): Promise<{
+async function loadCatalog(category?: string): Promise<{
   products: CatalogProduct[];
   error: boolean;
 }> {
   try {
     const gatewayUrl = process.env.API_GATEWAY_URL ?? 'http://localhost:8000';
-    const endpoint = new URL(
-      '/product/api/products?page=1&limit=12',
-      gatewayUrl
-    );
+    const endpoint = new URL('/product/api/products', gatewayUrl);
+    endpoint.searchParams.set('page', '1');
+    endpoint.searchParams.set('limit', '12');
+    if (category) {
+      endpoint.searchParams.set('category', category);
+    }
     const response = await fetch(endpoint, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`Gateway returned HTTP ${response.status}`);
@@ -83,8 +105,48 @@ async function loadCatalog(): Promise<{
   }
 }
 
-export default async function Index() {
-  const { products, error } = await loadCatalog();
+async function loadCategories(): Promise<{
+  categories: string[];
+  error: boolean;
+}> {
+  try {
+    const gatewayUrl = process.env.API_GATEWAY_URL ?? 'http://localhost:8000';
+    const endpoint = new URL('/product/api/categories', gatewayUrl);
+    const response = await fetch(endpoint, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`Gateway returned HTTP ${response.status}`);
+    }
+
+    const payload: unknown = await response.json();
+    if (!isCategoriesResponse(payload)) {
+      throw new Error('Gateway returned an invalid categories response');
+    }
+
+    return { categories: payload.categories, error: false };
+  } catch (error) {
+    console.error('Unable to load product categories.', error);
+    return { categories: [], error: true };
+  }
+}
+
+export default async function Index({
+  searchParams,
+}: {
+  searchParams: Promise<CatalogSearchParams>;
+}) {
+  const params = await searchParams;
+  const categoryParam = params.category;
+  const invalidCategory =
+    categoryParam !== undefined &&
+    (typeof categoryParam !== 'string' ||
+      categoryParam.trim().length === 0 ||
+      categoryParam.length > 100);
+  const selectedCategory =
+    typeof categoryParam === 'string' && !invalidCategory
+      ? categoryParam.trim()
+      : undefined;
+  const [{ products, error }, { categories, error: categoriesError }] =
+    await Promise.all([loadCatalog(selectedCategory), loadCategories()]);
 
   return (
     <main className="store-shell">
@@ -108,7 +170,11 @@ export default async function Index() {
         <div className="catalog-section-heading">
           <div>
             <p className="catalog-eyebrow">SHOP THE COLLECTION</p>
-            <h2 id="products-title">Featured products</h2>
+            <h2 id="products-title">
+              {selectedCategory
+                ? `${selectedCategory} products`
+                : 'Featured products'}
+            </h2>
           </div>
           {!error && (
             <span className="catalog-count">
@@ -117,7 +183,40 @@ export default async function Index() {
           )}
         </div>
 
-        {error ? (
+        <nav className="category-nav" aria-label="Product categories">
+          <a
+            className={`category-filter${selectedCategory ? '' : ' is-active'}`}
+            href="/"
+            aria-current={selectedCategory ? undefined : 'page'}
+          >
+            All products
+          </a>
+          {categories.map((category) => (
+            <a
+              className={`category-filter${
+                selectedCategory === category ? ' is-active' : ''
+              }`}
+              href={`/?${new URLSearchParams({ category }).toString()}`}
+              aria-current={selectedCategory === category ? 'page' : undefined}
+              key={category}
+            >
+              {category}
+            </a>
+          ))}
+        </nav>
+
+        {categoriesError && (
+          <p className="category-warning" role="status">
+            Category filters are temporarily unavailable.
+          </p>
+        )}
+
+        {invalidCategory ? (
+          <div className="catalog-message" role="alert">
+            <h3>Invalid category filter</h3>
+            <p>Choose a category from the available filters.</p>
+          </div>
+        ) : error ? (
           <div className="catalog-message" role="status">
             <h3>Catalog temporarily unavailable</h3>
             <p>
@@ -127,7 +226,11 @@ export default async function Index() {
           </div>
         ) : products.length === 0 ? (
           <div className="catalog-message" role="status">
-            <h3>Your next favorite is on its way.</h3>
+            <h3>
+              {selectedCategory
+                ? `No products found in ${selectedCategory}.`
+                : 'Your next favorite is on its way.'}
+            </h3>
             <p>There are no products to show right now. Check back soon.</p>
           </div>
         ) : (
