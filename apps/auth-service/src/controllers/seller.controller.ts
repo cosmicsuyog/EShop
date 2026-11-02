@@ -189,8 +189,8 @@ export const verifySeller = async (
     const body = requestRecord(req.body);
     const otp = requiredString(body.otp, 'OTP');
 
-    if (!/^\d{4}$/.test(otp)) {
-      throw new ValidationError('OTP must be a four-digit code.');
+    if (!/^\d{6}$/.test(otp)) {
+      throw new ValidationError('OTP must be a six-digit code.');
     }
 
     const existingSeller = await prisma.sellers.findUnique({

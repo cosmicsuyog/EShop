@@ -54,8 +54,8 @@ export default function RegisterPage() {
         return;
       }
       setValues((current) => ({ ...current, email }));
-    } else if (!/^\d{4}$/.test(otp)) {
-      setError('Enter the four-digit verification code sent to your email.');
+    } else if (!/^\d{6}$/.test(otp)) {
+      setError('Enter the six-digit verification code sent to your email.');
       return;
     }
 
@@ -105,7 +105,7 @@ export default function RegisterPage() {
         </h1>
         <p className="auth-intro">
           {isVerificationStep
-            ? `Enter the four-digit code sent to ${values.email}.`
+            ? `Enter the six-digit code sent to ${values.email}.`
             : 'Create an EShop account to get started.'}
         </p>
 
@@ -164,10 +164,10 @@ export default function RegisterPage() {
                   autoComplete="one-time-code"
                   id="register-otp"
                   inputMode="numeric"
-                  maxLength={4}
+                  maxLength={6}
                   name="otp"
                   onChange={(event) =>
-                    setOtp(event.target.value.replace(/\D/g, '').slice(0, 4))
+                    setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))
                   }
                   pattern="\d{4}"
                   required

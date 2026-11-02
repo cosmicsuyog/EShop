@@ -58,12 +58,12 @@ describe('seller API client and onboarding validation', () => {
     } as never);
 
     await expect(
-      verifySeller({ ...seller, password: 'seller-password' }, '1234')
+      verifySeller({ ...seller, password: 'seller-password' }, '123456')
     ).resolves.toEqual(seller);
     expect(post).toHaveBeenCalledWith('/api/verify-seller', {
       ...seller,
       password: 'seller-password',
-      otp: '1234',
+      otp: '123456',
     });
   });
 

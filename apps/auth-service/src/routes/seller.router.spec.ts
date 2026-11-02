@@ -225,7 +225,7 @@ describe('seller authentication and owned-shop routes', () => {
         password: 'plain-password',
         phone_number: '+1 555 0100',
         country: 'United States',
-        otp: '1234',
+        otp: '123456',
       }
     );
     const body = JSON.parse(response.body);
@@ -255,7 +255,7 @@ describe('seller authentication and owned-shop routes', () => {
     };
     expect(authHelpers.verifyOtp).toHaveBeenCalledWith(
       'seller@example.com',
-      '1234'
+      '123456'
     );
     expect(cookies).toHaveLength(2);
     expect(cookies[0]).toContain('seller-access-token=');

@@ -179,8 +179,8 @@ export default function SellerRegisterPage() {
   const submitVerification = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
-    if (!/^\d{4}$/.test(otp)) {
-      setError('Enter the four-digit verification code sent to your email.');
+    if (!/^\d{6}$/.test(otp)) {
+      setError('Enter the six-digit verification code sent to your email.');
       return;
     }
 
@@ -364,7 +364,7 @@ export default function SellerRegisterPage() {
             {step === 'verification' && (
               <>
                 <p className="auth-intro">
-                  Enter the four-digit verification code sent to{' '}
+                  Enter the six-digit verification code sent to{' '}
                   {registration.email}.
                 </p>
                 <form
@@ -377,9 +377,9 @@ export default function SellerRegisterPage() {
                     autoComplete="one-time-code"
                     id="seller-otp"
                     inputMode="numeric"
-                    maxLength={4}
+                    maxLength={6}
                     onChange={(event) =>
-                      setOtp(event.target.value.replace(/\D/g, '').slice(0, 4))
+                      setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))
                     }
                     pattern="\d{4}"
                     required

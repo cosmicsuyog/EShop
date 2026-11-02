@@ -173,11 +173,11 @@ describe('auth API client', () => {
       password: 'password',
     };
     await requestCustomerRegistration(values);
-    await verifyCustomerRegistration(values, '1234');
+    await verifyCustomerRegistration(values, '123456');
 
     expect(requests).toEqual([
       { path: '/api/user-registration', body: values },
-      { path: '/api/verify-registration', body: { ...values, otp: '1234' } },
+      { path: '/api/verify-registration', body: { ...values, otp: '123456' } },
     ]);
   });
 
@@ -268,8 +268,7 @@ describe('auth API client', () => {
       value: { dispatchEvent },
     });
 
-    authApi.defaults.adapter = async (config) =>
-      unauthorized(config);
+    authApi.defaults.adapter = async (config) => unauthorized(config);
 
     await expect(authApi.get('/api/protected')).rejects.toMatchObject({
       response: { status: 401 },
