@@ -1,6 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'node:crypto';
 import prisma from '@packages/libs/prisma/index.js';
+import redis from 'Packages/libs/redis';
 import {
   AuthError,
   ConflictError,
@@ -18,6 +20,7 @@ import {
 import { setCookie } from '../utils/cookies/setCookies';
 import {
   ACCESS_TOKEN_TTL_SECONDS,
+  REFRESH_TOKEN_TTL_SECONDS,
   signSellerToken,
   verifySellerToken,
 } from '../utils/sessionTokens';
@@ -126,7 +129,8 @@ const parseShopData = (value: unknown): ShopData => {
   };
 };
 
-const setSellerSession = (res: Response, sellerId: string) => {
+const setSellerSession = async (res: Response, sellerId: string) => {
+  const refreshTokenId = randomUUID();
   const accessToken = signSellerToken(
     sellerId,
     'access',
@@ -135,9 +139,16 @@ const setSellerSession = (res: Response, sellerId: string) => {
   const refreshToken = signSellerToken(
     sellerId,
     'refresh',
-    process.env.REFRESH_TOKEN_SECRET ?? ''
+    process.env.REFRESH_TOKEN_SECRET ?? '',
+    refreshTokenId
   );
 
+  await redis.set(
+    `seller_refresh_session:${refreshTokenId}`,
+    sellerId,
+    'EX',
+    REFRESH_TOKEN_TTL_SECONDS
+  );
   setCookie(res, 'seller-access-token', accessToken);
   setCookie(res, 'seller-refresh-token', refreshToken);
 };
@@ -220,7 +231,7 @@ export const verifySeller = async (
       },
     });
 
-    setSellerSession(res, seller.id);
+    await setSellerSession(res, seller.id);
     return res.status(201).json({
       success: true,
       message: 'Seller registered successfully.',
@@ -265,7 +276,7 @@ export const loginSeller = async (
       throw new AuthError('Invalid email or password.');
     }
 
-    setSellerSession(res, seller.id);
+    await setSellerSession(res, seller.id);
     return res.status(200).json({
       success: true,
       message: 'Seller logged in successfully.',
@@ -354,16 +365,51 @@ export const refreshSellerAccessToken = async (
       return next(new AuthError('Authenticated seller no longer exists.'));
     }
 
+    const refreshTokenId = randomUUID();
+    const nextRefreshToken = signSellerToken(
+      seller.id,
+      'refresh',
+      process.env.REFRESH_TOKEN_SECRET ?? '',
+      refreshTokenId
+    );
     const accessToken = signSellerToken(
       seller.id,
       'access',
       process.env.ACCESS_TOKEN_SECRET ?? ''
     );
+    const rotated = Number(
+      await redis.eval(
+        `
+          if redis.call('GET', KEYS[1]) ~= ARGV[1] then
+            return 0
+          end
+
+          redis.call('DEL', KEYS[1])
+          redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2])
+          return 1
+        `,
+        2,
+        `seller_refresh_session:${claims.jti}`,
+        `seller_refresh_session:${refreshTokenId}`,
+        seller.id,
+        REFRESH_TOKEN_TTL_SECONDS
+      )
+    );
+    if (rotated !== 1) {
+      return next(new AuthError('Seller refresh token has been revoked.'));
+    }
+
     setCookie(
       res,
       'seller-access-token',
       accessToken,
       ACCESS_TOKEN_TTL_SECONDS * 1000
+    );
+    setCookie(
+      res,
+      'seller-refresh-token',
+      nextRefreshToken,
+      REFRESH_TOKEN_TTL_SECONDS * 1000
     );
     return res.status(200).json({
       success: true,
@@ -374,7 +420,7 @@ export const refreshSellerAccessToken = async (
   }
 };
 
-export const logoutSeller = (
+export const logoutSeller = async (
   req: Request,
   res: Response,
   next: NextFunction
@@ -385,20 +431,49 @@ export const logoutSeller = (
     );
   }
 
-  const cookieOptions = {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none' as const,
-    path: '/',
-  };
-  res.clearCookie('seller-access-token', cookieOptions);
-  res.clearCookie('seller-refresh-token', cookieOptions);
+  try {
+    const refreshToken = req.cookies?.['seller-refresh-token'];
+    if (typeof refreshToken === 'string' && refreshToken.length > 0) {
+      try {
+        const claims = verifySellerToken(
+          refreshToken,
+          process.env.REFRESH_TOKEN_SECRET,
+          'refresh'
+        );
+        await redis.eval(
+          `
+            if redis.call('GET', KEYS[1]) == ARGV[1] then
+              return redis.call('DEL', KEYS[1])
+            end
+            return 0
+          `,
+          1,
+          `seller_refresh_session:${claims.jti}`,
+          claims.id
+        );
+      } catch (error) {
+        if (!(error instanceof AuthError)) {
+          throw error;
+        }
+      }
+    }
 
-  return res.status(200).json({
-    success: true,
-    message:
-      'Signed out on this browser. Previously issued access tokens are not revoked.',
-  });
+    const cookieOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none' as const,
+      path: '/',
+    };
+    res.clearCookie('seller-access-token', cookieOptions);
+    res.clearCookie('seller-refresh-token', cookieOptions);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Signed out on this browser.',
+    });
+  } catch (error) {
+    return next(error);
+  }
 };
 
 export const createShop = async (

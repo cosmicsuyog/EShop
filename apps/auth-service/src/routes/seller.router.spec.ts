@@ -4,8 +4,17 @@ import { request, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import jwt from 'jsonwebtoken';
 import prisma from '@packages/libs/prisma/index.js';
+import redis from 'Packages/libs/redis';
 import { errorMiddleware } from '@packages/error-handler/error-middleware';
 import router from './auth.router';
+
+jest.mock('Packages/libs/redis', () => ({
+  __esModule: true,
+  default: {
+    eval: jest.fn(),
+    set: jest.fn(),
+  },
+}));
 
 jest.mock('@packages/libs/prisma/index.js', () => ({
   __esModule: true,
@@ -64,9 +73,16 @@ const tokenFor = (id: string, role: 'seller' | 'user' = 'seller') =>
   });
 
 const refreshTokenFor = (id = SELLER_A) =>
-  jwt.sign({ id, role: 'seller', tokenUse: 'refresh' }, REFRESH_SECRET, {
-    expiresIn: '5m',
-  });
+  jwt.sign(
+    {
+      id,
+      jti: 'seller-refresh-session-id',
+      role: 'seller',
+      tokenUse: 'refresh',
+    },
+    REFRESH_SECRET,
+    { expiresIn: '5m' }
+  );
 
 describe('seller authentication and owned-shop routes', () => {
   let server: Server;
@@ -75,6 +91,8 @@ describe('seller authentication and owned-shop routes', () => {
   const sellerCreate = jest.mocked(prisma.sellers.create);
   const shopFindUnique = jest.mocked(prisma.shops.findUnique);
   const shopCreate = jest.mocked(prisma.shops.create);
+  const redisEval = jest.mocked(redis.eval);
+  const redisSet = jest.mocked(redis.set);
   const originalAccessSecret = process.env.ACCESS_TOKEN_SECRET;
   const originalRefreshSecret = process.env.REFRESH_TOKEN_SECRET;
 
@@ -120,6 +138,8 @@ describe('seller authentication and owned-shop routes', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    redisEval.mockResolvedValue(1);
+    redisSet.mockResolvedValue('OK');
   });
 
   const send = (
@@ -534,8 +554,50 @@ describe('seller authentication and owned-shop routes', () => {
     const cookies = response.headers['set-cookie'] as string[];
 
     expect(response.statusCode).toBe(200);
-    expect(cookies).toHaveLength(1);
+    expect(cookies).toHaveLength(2);
     expect(cookies[0]).toContain('seller-access-token=');
     expect(cookies[0]).toContain('Max-Age=900');
+    expect(cookies[1]).toContain('seller-refresh-token=');
+    expect(redisEval).toHaveBeenCalledWith(
+      expect.stringContaining("redis.call('DEL', KEYS[1])"),
+      2,
+      'seller_refresh_session:seller-refresh-session-id',
+      expect.stringMatching(/^seller_refresh_session:/),
+      SELLER_A,
+      604800
+    );
+  });
+
+  it('revokes a seller refresh session on logout and rejects its replay', async () => {
+    const refreshToken = refreshTokenFor();
+    redisEval.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    sellerFindUnique.mockResolvedValue({ id: SELLER_A } as never);
+
+    const logoutResponse = await send('POST', '/api/logout-seller', {
+      origin: 'http://localhost:3000',
+      cookie: `seller-refresh-token=${refreshToken}`,
+    });
+    const refreshResponse = await send('POST', '/api/refresh-seller-token', {
+      origin: 'http://localhost:3000',
+      cookie: `seller-refresh-token=${refreshToken}`,
+    });
+
+    expect(logoutResponse.statusCode).toBe(200);
+    expect(logoutResponse.headers['set-cookie']).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('seller-access-token=;'),
+        expect.stringContaining('seller-refresh-token=;'),
+      ])
+    );
+    expect(redisEval).toHaveBeenCalledWith(
+      expect.stringContaining("redis.call('GET', KEYS[1]) == ARGV[1]"),
+      1,
+      'seller_refresh_session:seller-refresh-session-id',
+      SELLER_A
+    );
+    expect(refreshResponse.statusCode).toBe(401);
+    expect(JSON.parse(refreshResponse.body).message).toBe(
+      'Seller refresh token has been revoked.'
+    );
   });
 });

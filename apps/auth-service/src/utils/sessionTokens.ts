@@ -16,6 +16,7 @@ export type SellerTokenUse = 'access' | 'refresh';
 
 type SellerTokenClaims = jwt.JwtPayload & {
   id: string;
+  jti?: string;
   role: 'seller';
   tokenUse: SellerTokenUse;
 };
@@ -44,7 +45,8 @@ export const signUserToken = (
 export const signSellerToken = (
   sellerId: string,
   tokenUse: SellerTokenUse,
-  secret: string
+  secret: string,
+  jti?: string
 ) => {
   if (!secret) {
     throw new Error(
@@ -54,12 +56,16 @@ export const signSellerToken = (
     );
   }
 
-  return jwt.sign({ id: sellerId, role: 'seller', tokenUse }, secret, {
-    expiresIn:
-      tokenUse === 'access'
-        ? ACCESS_TOKEN_TTL_SECONDS
-        : REFRESH_TOKEN_TTL_SECONDS,
-  });
+  return jwt.sign(
+    { id: sellerId, role: 'seller', tokenUse, ...(jti ? { jti } : {}) },
+    secret,
+    {
+      expiresIn:
+        tokenUse === 'access'
+          ? ACCESS_TOKEN_TTL_SECONDS
+          : REFRESH_TOKEN_TTL_SECONDS,
+    }
+  );
 };
 
 export const verifyUserToken = (
@@ -129,6 +135,8 @@ export const verifySellerToken = (
     payload.id.length === 0 ||
     payload.role !== 'seller' ||
     payload.tokenUse !== tokenUse ||
+    (tokenUse === 'refresh' &&
+      (typeof payload.jti !== 'string' || payload.jti.length === 0)) ||
     typeof payload.exp !== 'number' ||
     payload.exp <= Math.floor(Date.now() / 1000)
   ) {
