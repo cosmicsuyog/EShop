@@ -2,6 +2,8 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import SellerLoginPage from './login/page';
 import SellerRegisterPage from './register/page';
+import SellerProductsPage from './products/page';
+import NewSellerProductPage from './products/new/page';
 
 jest.mock('next/link', () => {
   const { createElement } = require('react');
@@ -46,5 +48,23 @@ describe('seller onboarding pages', () => {
     expect(markup).toContain('Seller onboarding');
     expect(markup).toContain('Checking seller session');
     expect(markup).toContain('aria-label="Seller setup progress"');
+  });
+
+  it('renders the product management loading state', () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(SellerProductsPage)
+    );
+
+    expect(markup).toContain('Your products');
+    expect(markup).toContain('Checking seller session and loading products');
+  });
+
+  it('renders the product creation page with a seller session check', () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(NewSellerProductPage)
+    );
+
+    expect(markup).toContain('Add a product');
+    expect(markup).toContain('Checking seller session');
   });
 });

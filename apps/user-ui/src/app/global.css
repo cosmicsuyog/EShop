@@ -926,6 +926,151 @@ p {
   width: 100%;
 }
 
+.seller-products-page {
+  padding: 58px 0 80px;
+}
+
+.seller-products-heading {
+  align-items: flex-end;
+  border-bottom: 1px solid #e8e5de;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  padding-bottom: 18px;
+}
+
+.seller-products-heading h1,
+.seller-product-form-panel h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  margin-top: 8px;
+}
+
+.seller-products-add {
+  display: inline-flex;
+  margin-top: 0;
+  text-align: center;
+}
+
+.seller-products-notice,
+.seller-products-empty {
+  background: #fff;
+  border: 1px solid #e8e5de;
+  border-radius: 8px;
+  color: #5e6057;
+  padding: 22px;
+}
+
+.seller-products-notice a,
+.seller-products-empty a {
+  color: #315744;
+  display: inline-block;
+  font-weight: 600;
+  margin-top: 10px;
+  text-decoration: underline;
+}
+
+.seller-product-list {
+  display: grid;
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.seller-product-card {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e8e5de;
+  border-radius: 8px;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  padding: 22px;
+}
+
+.seller-product-card-content {
+  min-width: 0;
+}
+
+.seller-product-card h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-top: 5px;
+}
+
+.seller-product-card-content > p:not(.catalog-eyebrow) {
+  color: #77766f;
+  margin-top: 7px;
+}
+
+.seller-product-meta {
+  color: #5e6057;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.84rem;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.seller-product-actions {
+  flex: 0 0 auto;
+}
+
+.seller-product-delete {
+  background: #fff;
+  border: 1px solid #c9a29e;
+  border-radius: 5px;
+  color: #8b3a32;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  min-height: 42px;
+  padding: 9px 14px;
+}
+
+.seller-product-delete:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.seller-product-form-panel {
+  max-width: 680px;
+}
+
+.seller-product-form-panel textarea {
+  background: #fff;
+  border: 1px solid #d8d6cf;
+  border-radius: 5px;
+  color: #24231f;
+  font: inherit;
+  margin-bottom: 8px;
+  min-height: 110px;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.seller-product-form-panel textarea:focus {
+  border-color: #315744;
+  outline: 3px solid rgb(49 87 68 / 16%);
+}
+
+.seller-product-field-hint {
+  color: #77766f;
+  font-size: 0.8rem;
+  margin-top: -6px;
+}
+
+.seller-product-cancel {
+  color: #315744;
+  font-weight: 600;
+  justify-self: center;
+  margin-top: 8px;
+  text-decoration: underline;
+}
+
 .account-profile {
   border-top: 1px solid #e8e5de;
   margin-top: 24px;

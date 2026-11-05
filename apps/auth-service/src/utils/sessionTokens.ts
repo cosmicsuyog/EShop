@@ -1,5 +1,11 @@
 import jwt, { JsonWebTokenError } from 'jsonwebtoken';
 import { AuthError } from '@packages/error-handler/index';
+import {
+  verifySellerToken,
+  type SellerTokenUse as SharedSellerTokenUse,
+} from '@packages/libs/auth/verifySellerToken';
+
+export { verifySellerToken };
 
 export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -12,14 +18,7 @@ type UserTokenClaims = jwt.JwtPayload & {
   tokenUse: UserTokenUse;
 };
 
-export type SellerTokenUse = 'access' | 'refresh';
-
-type SellerTokenClaims = jwt.JwtPayload & {
-  id: string;
-  jti?: string;
-  role: 'seller';
-  tokenUse: SellerTokenUse;
-};
+export type SellerTokenUse = SharedSellerTokenUse;
 
 export const signUserToken = (
   userId: string,
@@ -104,44 +103,4 @@ export const verifyUserToken = (
   }
 
   return payload as UserTokenClaims;
-};
-
-export const verifySellerToken = (
-  token: string,
-  secret: string | undefined,
-  tokenUse: SellerTokenUse
-): SellerTokenClaims => {
-  if (!secret) {
-    throw new Error(
-      `${
-        tokenUse === 'access' ? 'ACCESS' : 'REFRESH'
-      }_TOKEN_SECRET is not configured.`
-    );
-  }
-
-  let payload: string | jwt.JwtPayload;
-  try {
-    payload = jwt.verify(token, secret);
-  } catch (error) {
-    if (error instanceof JsonWebTokenError) {
-      throw new AuthError(`Invalid or expired ${tokenUse} token.`);
-    }
-    throw error;
-  }
-
-  if (
-    typeof payload === 'string' ||
-    typeof payload.id !== 'string' ||
-    payload.id.length === 0 ||
-    payload.role !== 'seller' ||
-    payload.tokenUse !== tokenUse ||
-    (tokenUse === 'refresh' &&
-      (typeof payload.jti !== 'string' || payload.jti.length === 0)) ||
-    typeof payload.exp !== 'number' ||
-    payload.exp <= Math.floor(Date.now() / 1000)
-  ) {
-    throw new AuthError(`Invalid ${tokenUse} token.`);
-  }
-
-  return payload as SellerTokenClaims;
 };

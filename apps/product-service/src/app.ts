@@ -1,4 +1,5 @@
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import { errorMiddleware } from '@packages/error-handler/error-middleware.js';
 import productRouter from './routes/product.router.js';
 
@@ -6,6 +7,7 @@ export const createApp = () => {
   const app = express();
 
   app.use(express.json());
+  app.use(cookieParser());
 
   app.get('/', (_req, res) => {
     res.send({ message: 'Hello Product API!' });

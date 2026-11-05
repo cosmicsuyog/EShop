@@ -498,6 +498,7 @@ export default function SellerRegisterPage() {
                 <h2>Your shop is ready</h2>
                 <p>{createdShop.name}</p>
                 <p>{createdShop.category}</p>
+                <Link href="/seller/products">Manage products</Link>
                 <Link href="/">Continue to the storefront</Link>
                 <button
                   className="auth-secondary seller-sign-out"

@@ -1,4 +1,5 @@
 import { request, type Server } from 'node:http';
+import jwt from 'jsonwebtoken';
 import prisma from '@packages/libs/prisma/index.js';
 import { createApp } from '../app.js';
 
@@ -7,9 +8,16 @@ describe('product catalog routes', () => {
   let port: number;
   const findMany = jest.mocked(prisma.products.findMany);
   const findFirst = jest.mocked(prisma.products.findFirst);
+  const findUnique = jest.mocked(prisma.products.findUnique);
+  const create = jest.mocked(prisma.products.create);
+  const updateMany = jest.mocked(prisma.products.updateMany);
   const count = jest.mocked(prisma.products.count);
+  const findSeller = jest.mocked(prisma.sellers.findUnique);
+  const findShop = jest.mocked(prisma.shops.findUnique);
+  const accessTokenSecret = 'product-service-test-access-secret';
 
   beforeAll(async () => {
+    process.env.ACCESS_TOKEN_SECRET = accessTokenSecret;
     server = createApp().listen(0);
 
     await new Promise<void>((resolve, reject) => {
@@ -28,7 +36,12 @@ describe('product catalog routes', () => {
   afterAll(async () => {
     findMany.mockReset();
     findFirst.mockReset();
+    findUnique.mockReset();
+    create.mockReset();
+    updateMany.mockReset();
     count.mockReset();
+    findSeller.mockReset();
+    findShop.mockReset();
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
@@ -37,17 +50,35 @@ describe('product catalog routes', () => {
   beforeEach(() => {
     findMany.mockReset();
     findFirst.mockReset();
+    findUnique.mockReset();
+    create.mockReset();
+    updateMany.mockReset();
     count.mockReset();
+    findSeller.mockReset();
+    findShop.mockReset();
   });
 
-  const getProducts = (path = '/api/products') =>
+  const sendRequest = (
+    method: string,
+    path: string,
+    body?: unknown,
+    token?: string
+  ) =>
     new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
+      const requestBody = body === undefined ? undefined : JSON.stringify(body);
       const req = request(
         {
           hostname: '127.0.0.1',
           port,
           path,
-          method: 'GET',
+          method,
+          headers: {
+            ...(requestBody ? { 'content-type': 'application/json' } : {}),
+            ...(requestBody
+              ? { 'content-length': Buffer.byteLength(requestBody) }
+              : {}),
+            ...(token ? { cookie: `seller-access-token=${token}` } : {}),
+          },
         },
         (res) => {
           let body = '';
@@ -62,8 +93,266 @@ describe('product catalog routes', () => {
       );
 
       req.on('error', reject);
+      if (requestBody) {
+        req.write(requestBody);
+      }
       req.end();
     });
+
+  const getProducts = (path = '/api/products') => sendRequest('GET', path);
+  const sellerAccessToken = (sellerId = '507f1f77bcf86cd799439001') =>
+    jwt.sign(
+      { id: sellerId, role: 'seller', tokenUse: 'access' },
+      accessTokenSecret,
+      { expiresIn: 900 }
+    );
+  const authenticateSeller = (
+    sellerId = '507f1f77bcf86cd799439001',
+    shopId = '507f1f77bcf86cd799439002'
+  ) => {
+    findSeller.mockResolvedValue({
+      id: sellerId,
+      email: 'seller@example.com',
+      name: 'Seller',
+      phone_number: '+1 555 0100',
+      country: 'US',
+    } as never);
+    findShop.mockResolvedValue({ id: shopId } as never);
+    return sellerAccessToken(sellerId);
+  };
+
+  const product = {
+    id: '507f1f77bcf86cd799439003',
+    title: 'Canvas Backpack',
+    slug: 'canvas-backpack',
+    category: 'Accessories',
+    subcategory: 'Bags',
+    short_description: 'A durable backpack.',
+    detailed_description: 'A durable everyday backpack with multiple pockets.',
+    video_url: null,
+    tags: ['travel'],
+    brand: null,
+    colors: [],
+    sizes: [],
+    stock: 12,
+    sale_price: 49.99,
+    regular_price: 59.99,
+    rattings: 0,
+    warranty: null,
+    isDeleted: false,
+    deletedAt: null,
+    images: [],
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  };
+
+  const productInput = {
+    title: product.title,
+    slug: product.slug,
+    category: product.category,
+    subcategory: product.subcategory,
+    short_description: product.short_description,
+    detailed_description: product.detailed_description,
+    tags: product.tags,
+    stock: product.stock,
+    sale_price: product.sale_price,
+    regular_price: product.regular_price,
+  };
+
+  it('creates a product in the authenticated seller shop, ignoring client ownership IDs', async () => {
+    const token = authenticateSeller();
+    findUnique.mockResolvedValue(null as never);
+    create.mockResolvedValue(product as never);
+
+    const response = await sendRequest(
+      'POST',
+      '/api/create-product',
+      {
+        ...productInput,
+        sellerId: '507f1f77bcf86cd799439099',
+        shopId: '507f1f77bcf86cd799439099',
+      },
+      token
+    );
+
+    expect(response.statusCode).toBe(201);
+    expect(JSON.parse(response.body).product).toMatchObject({
+      id: product.id,
+      slug: product.slug,
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          title: product.title,
+          shopId: '507f1f77bcf86cd799439002',
+        }),
+        select: expect.objectContaining({
+          id: true,
+          isDeleted: true,
+        }),
+      })
+    );
+    const createData = create.mock.calls[0][0]?.data as
+      | Record<string, unknown>
+      | undefined;
+    expect(createData).not.toHaveProperty('sellerId');
+    expect(createData?.shopId).not.toBe('507f1f77bcf86cd799439099');
+  });
+
+  it('rejects unauthenticated seller product requests', async () => {
+    const response = await getProducts('/api/get-shop-products');
+
+    expect(response.statusCode).toBe(401);
+    expect(findSeller).not.toHaveBeenCalled();
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('does not accept a customer access token for seller product routes', async () => {
+    const customerToken = jwt.sign(
+      { id: '507f1f77bcf86cd799439004', role: 'user', tokenUse: 'access' },
+      accessTokenSecret,
+      { expiresIn: 900 }
+    );
+
+    const response = await sendRequest(
+      'GET',
+      '/api/get-shop-products',
+      undefined,
+      customerToken
+    );
+
+    expect(response.statusCode).toBe(401);
+    expect(findSeller).not.toHaveBeenCalled();
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('lists only products from the authenticated seller shop, including deleted products', async () => {
+    const token = authenticateSeller();
+    findMany.mockResolvedValue([{ ...product, isDeleted: true }] as never);
+
+    const response = await sendRequest(
+      'GET',
+      '/api/get-shop-products',
+      undefined,
+      token
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).products[0].isDeleted).toBe(true);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopId: '507f1f77bcf86cd799439002' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      })
+    );
+  });
+
+  it('soft-deletes a product using an ownership-scoped atomic update', async () => {
+    const token = authenticateSeller();
+    updateMany.mockResolvedValue({ count: 1 } as never);
+    findFirst.mockResolvedValue({
+      ...product,
+      isDeleted: true,
+      deletedAt: new Date(),
+    } as never);
+
+    const response = await sendRequest(
+      'DELETE',
+      `/api/delete-product/${product.id}`,
+      undefined,
+      token
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).product.isDeleted).toBe(true);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: product.id,
+          shopId: '507f1f77bcf86cd799439002',
+          isDeleted: false,
+        },
+        data: {
+          isDeleted: true,
+          deletedAt: expect.any(Date),
+        },
+      })
+    );
+  });
+
+  it('restores a product using an ownership-scoped atomic update', async () => {
+    const token = authenticateSeller();
+    updateMany.mockResolvedValue({ count: 1 } as never);
+    findFirst.mockResolvedValue({ ...product, isDeleted: false } as never);
+
+    const response = await sendRequest(
+      'PUT',
+      `/api/restore-product/${product.id}`,
+      undefined,
+      token
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).product.isDeleted).toBe(false);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: product.id,
+          shopId: '507f1f77bcf86cd799439002',
+          isDeleted: true,
+        },
+        data: {
+          isDeleted: false,
+          deletedAt: null,
+        },
+      })
+    );
+  });
+
+  it('does not expose another seller product for deletion or restoration', async () => {
+    const token = authenticateSeller();
+    updateMany.mockResolvedValue({ count: 0 } as never);
+    findFirst.mockResolvedValue(null as never);
+
+    for (const [method, action] of [
+      ['DELETE', 'delete-product'],
+      ['PUT', 'restore-product'],
+    ]) {
+      const response = await sendRequest(
+        method,
+        `/api/${action}/${product.id}`,
+        undefined,
+        token
+      );
+      expect(response.statusCode).toBe(404);
+    }
+
+    expect(updateMany).toHaveBeenCalledTimes(2);
+    for (const [call] of updateMany.mock.calls) {
+      expect(call?.where).toEqual(
+        expect.objectContaining({ shopId: '507f1f77bcf86cd799439002' })
+      );
+    }
+    for (const [call] of findFirst.mock.calls) {
+      expect(call?.where).toEqual(
+        expect.objectContaining({ shopId: '507f1f77bcf86cd799439002' })
+      );
+    }
+  });
+
+  it('rejects invalid IDs without querying product records', async () => {
+    const token = authenticateSeller();
+
+    const response = await sendRequest(
+      'DELETE',
+      '/api/delete-product/not-an-object-id',
+      undefined,
+      token
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(findFirst).not.toHaveBeenCalled();
+  });
 
   it('returns distinct active catalog categories in alphabetical order', async () => {
     findMany.mockResolvedValue([

@@ -4,12 +4,14 @@
   "license": "MIT",
   "scripts": {
     "dev": "npx nx run-many --target=serve --all",
-    "auth-docs": "node apps/auth-service/src/swagger.js"
+    "auth-docs": "node apps/auth-service/src/swagger.js",
+    "user-ui": "npx nx run-away --target=dev --all --projects=user-ui"
   },
   "private": true,
   "type": "module",
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
+    "@tanstack/react-query": "^5.104.5",
     "axios": "^1.20.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
@@ -26,6 +28,7 @@
     "nodemailer": "^10.0.14",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-hook-form": "^7.90.0",
     "swagger-autogen": "^2.23.7",
     "swagger-ui-express": "^5.0.1"
   },
