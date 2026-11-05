@@ -1,0 +1,34 @@
+name: Bug report
+description: Report a reproducible problem in EShop
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Share only information that is safe to make public. Do not include credentials, tokens, personal data, or private environment values.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Start the local services\n2. Open the relevant page\n3. Perform the action"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Node.js version, and affected Nx project. Do not paste environment variable values.
+    validations:
+      required: false

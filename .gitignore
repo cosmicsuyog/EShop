@@ -9,6 +9,7 @@ out-tsc
 node_modules
 
 # Local development database configuration
+/.env
 .env.local
 
 # IDEs and editors
@@ -51,3 +52,19 @@ test-output
 # Next.js
 .next
 out
+
+# Playwright output
+**/test-results/
+**/playwright-report/
+playwright/.cache/
+
+# TypeScript build metadata
+*.tsbuildinfo
+
+# Playwright output
+**/test-results/
+**/playwright-report/
+playwright/.cache/
+
+# TypeScript build metadata
+*.tsbuildinfo

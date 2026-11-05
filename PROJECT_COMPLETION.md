@@ -1,52 +1,86 @@
-# EShop reference completion
+# EShop implementation and validation status
 
-Last updated: 2026-11-05
-Reference: `becodemy/eshop-multivendor-ecommerce-microservice` at `0b93e0d`
+Last reviewed: 2026-11-05
 
-## Verified reference inventory
+Reference: becodemy/eshop-multivendor-ecommerce-microservice, revision 0b93e0d
 
-The reference contains ten Nx applications: `api-gateway`, `api-gateway-e2e`, `auth-service`, `auth-service-e2e`, `product-service`, `product-service-e2e`, `seller-ui`, `seller-ui-e2e`, `user-ui`, and `user-ui-e2e`. Its packages are `components`, `database`, `error-handler`, and `middleware`.
+This file records implementation and validation evidence. It is not a claim that the project is production-ready or that every check currently passes.
 
-Reference functionality includes customer registration/OTP/login/password reset; seller registration/OTP/login, shop creation, Stripe Connect; product category/subcategory and catalog pages; seller product create/list/soft-delete/restore; product image upload/removal; seller discount create/list/delete; and common API/database/middleware/error-handler code. The reference has no customer cart, checkout, buyer payment collection, or order management. Its three API E2E specs are hello-route smoke tests, its two browser E2E specs only check the home page heading, and its hourly product cleanup job fetches old soft-deleted records without deleting them. These scaffolded or ineffective behaviors are not treated as functioning product requirements.
+## Workspace and feature scope
 
-## Starting local state
+The reference has ten Nx projects: api-gateway, api-gateway-e2e, auth-service, auth-service-e2e, product-service, product-service-e2e, seller-ui, seller-ui-e2e, user-ui, and user-ui-e2e. All ten project names are present locally.
 
-- Branch `main`, clean at start, HEAD `f16ca7c`.
-- Preserved commits: `c7eb1c0` Stripe Connect, `6849298` seller discount management, `f16ca7c` customer password reset and final integration.
-- Local apps: API Gateway, Auth Service, Product Service, Auth Service E2E, and `user-ui` (currently misnamed by Nx as `@./user-ui`). The seller experience is embedded under `user-ui`; four reference E2E projects are absent.
-- Local adds customer cart and product catalog/detail workflows that are not present in the reference; preserve them.
-- Local already has seller shop, product lifecycle, Stripe and discount flows with ownership-scoped backend authorization. Product image upload/removal endpoints are absent locally.
-- Local Prisma schema adds cart relations and already declares the product image relation. Root docs are still the generic Nx starter README. Local workspace has no shared components package.
-- The isolated `.env.local` points to `127.0.0.1:27018/eshop_development` with replica set `eshop-dev`; never print its value or use root `.env` for writes. The installed MongoDB Windows service is configured for port `27017` and its existing data directory. No MongoDB listener was found on `27018`, and no Redis listener was found on `6379`. Work must start a second, isolated MongoDB process using only a new ignored workspace data directory; do not edit or restart the service on `27017`.
-- Reference README is the generated Nx starter, so it provides no useful runbook. Reference requires external email, image-hosting, and Stripe integrations; availability must be verified or reported as needing credentials.
+The reference packages include components, database, error-handler, and middleware. Locally, Prisma, Redis, authentication helpers, seller middleware, and error handling are under Packages/. The reference components package is not present as a separate package; controls are implemented in the apps.
 
-## Completion roadmap
+Implemented features include:
 
-1. **Seller application boundary:** create an independent Nx `seller-ui`, move seller workflows out of customer routes while preserving old entry points as redirects, configure app origin/API integration and route protection, and restore reference product image upload/removal with a provider boundary and safe mocked tests.
-2. **E2E coverage:** add all missing E2E Nx projects and make all five exercise useful HTTP/browser boundaries and isolation checks. Use mocks for email, Stripe, and image hosting; no production credentials or real transactions.
-3. **Local integrations and hardening:** bring up only the isolated replica set on port 27018, verify `.env.local` through Nx/application runtime and schema indexes, inspect Redis/email behavior, and address verified security gaps such as invalidating customer sessions after password reset.
-4. **Developer experience:** replace the starter README with setup/run/test instructions, document secret-free environment keys and ports, and include completion/progress evidence.
-5. **Final validation:** Nx project and sync checks; Prisma validation/generation; unit/integration/E2E tests; app builds; lint/type checks; local DB/index checks; `git diff --check`; coherent milestone commits with task-only staging.
+- Customer registration, OTP verification, login, password recovery, and session handling.
+- Catalog browsing and product details.
+- Customer cart (a local addition; not checkout).
+- Seller registration, OTP verification, login, and shop creation.
+- Seller product create/list/soft-delete/restore and product image upload/removal.
+- Seller discount create/list/delete.
+- Stripe Connect seller onboarding and status links.
+- Separate customer and seller Next.js apps.
+- Five E2E projects for HTTP and browser boundaries.
 
-## Current milestone
+The reference does not implement checkout, buyer payment collection, or order management. A general product edit route and checkout-time discount application are also absent locally. See the [feature inventory](docs/project/feature-inventory.md) and [known limitations](docs/project/known-limitations.md).
 
-1. **Independent seller UI:** complete. Seller registration/login, dashboard, product list/create/delete/restore, Stripe Connect, discounts, dashboard navigation and logout now run in a separate Nx app. The old storefront seller URLs remain as redirects; `user-ui` keeps its customer routes. The seller app now has a first-class Nx name and build/test/lint targets.
-2. **Product images:** next. The reference has authenticated ImageKit upload/removal endpoints and persists uploaded image records with products; the local product flow currently does not expose those operations.
-3. **E2E projects, integrations/security, documentation, and final validation:** pending in that order.
+## Documentation and repository cleanup
 
-## Current-task validation
+The root README now introduces the actual architecture, feature scope, local setup, ports, API groups, testing, security boundaries, screenshots plan, and limitations. Detailed guides are organized under docs/ for architecture, development, APIs, testing, deployment boundaries, feature inventory, limitations, and prepared GitHub About metadata.
 
-- `nx build seller-ui`: passed after the dashboard layout and logout were added.
-- `nx test seller-ui --runInBand`: 4 suites, 21 tests passed.
-- `nx lint seller-ui`: passed.
-- `nx build user-ui`: passed after seller routes became redirects.
-- `nx test user-ui --runInBand`: 7 suites, 33 tests passed.
-- `nx run-many --target=lint --projects=user-ui,seller-ui --parallel=1`: passed; storefront reports three existing warnings, seller app has none.
-- `nx sync:check`: passed after `nx sync` added the seller app TypeScript reference.
-- Nx reports remote cache upload warnings because this workspace is not connected to Nx Cloud; local task results succeeded.
+Contributor, security, and conduct guidance plus GitHub issue and pull-request templates are present. The GitHub About description/topics are documented for manual entry; no GitHub settings were changed.
 
-The seller-UI milestone is ready for its first implementation commit. No commit has been created for this request yet.
+No .dots directory or .dots references were found. Two tracked Playwright last-run result files were removed and report output patterns are ignored. No license file was present or added.
 
-## Validation and resume
+## Feature commits
 
-Previously committed work has its own validation history; current-task checks will be recorded after each milestone and must not be assumed to have passed. Resume by reading this document, checking `git status --short`, and continuing at the current milestone. Never clean/reset the repository, amend previous commits, push, expose secrets, or write to MongoDB Atlas.
+- c7eb1c0 — Stripe Connect seller onboarding.
+- 6849298 — seller discount management.
+- f16ca7c — customer password recovery and integration.
+- f4ac035 — separate seller UI.
+- 48a91fa — broad integration including product images, session revocation/rotation, gateway origins, and E2E projects.
+
+At the last Git inspection, HEAD was 48a91fa on main and also appeared as origin/main. This documentation pass does not change application source.
+
+## Last recorded validation
+
+These outcomes were recorded during earlier implementation work. They are historical results, not a current green status; relevant checks need to be rerun after later source changes.
+
+- API Gateway E2E: 3 passed (cookie forwarding, product routing, customer/seller CORS).
+- Auth Service E2E: 2 passed (customer session rotation/revocation; seller registration, shop creation, mocked Stripe link, identity forgery rejection, logout revocation).
+- Product Service E2E: 2 passed (seller product lifecycle/ownership; discount isolation/deletion).
+- Seller UI Chromium E2E: 2 passed (login validation/error and protected dashboard).
+- User UI Chromium E2E: 2 passed (password recovery and cart quantity/subtotal).
+- Auth unit/integration: 82 passed before the latest seller access-token Redis-session middleware change; rerun required.
+- Product unit suite: a prior run passed before the latest seller Redis-session middleware change; rerun required.
+- Product Service build passed after Node Fetch API type support was added. Auth Service, API Gateway, and both UI builds passed as E2E prerequisites.
+- Prisma Client generation passed after sessionVersion was added. Validation and database push passed earlier for the image schema; rerun validation/generation/schema sync and index inspection for the latest schema.
+- Nx sync, latest lint, full unit test/typecheck/build, MongoDB PRIMARY/index state, and application-level database verification remain to be rechecked.
+
+The GitHub Actions workflow runs affected lint, test, and build for pull requests and pushes to master. It does not run E2E or Prisma/database checks.
+
+## Local infrastructure observations
+
+- The isolated MongoDB TCP port 27018 was listening at the last environment check. Replica-set PRIMARY and current Prisma indexes were not reverified after the sessionVersion schema change.
+- Redis at 127.0.0.1:6379 was not listening at the last environment check.
+- SMTP and live Stripe/ImageKit accounts were not verified. Provider tests use mocks.
+- The local database wrapper accepts only 127.0.0.1:27018, database eshop_development, replica set eshop-dev. Use it for local Nx and Prisma commands.
+
+## Security findings
+
+- The root .env file is tracked. Its contents are intentionally not included here. Review the repository history and remove/rotate any live credentials separately before public distribution; do not use it for database writes.
+- .env.local is ignored by Git and must not be committed.
+- Cookie-authenticated mutations need a deployment-specific CSRF review. Current CORS and selected origin checks are not a comprehensive CSRF guarantee.
+- No live payment transaction or provider credentials were used in recorded tests.
+- The repository has no LICENSE file. No license is added by the documentation work.
+
+## Resume checks
+
+1. Confirm MongoDB replica set eshop-dev reaches PRIMARY on 127.0.0.1:27018 and start isolated local Redis.
+2. Run guarded Prisma validate, generate, and db push, then verify required indexes.
+3. Rerun Auth and Product unit suites after seller session middleware changes.
+4. Run all five E2E projects, affected builds, lint, typecheck, and Nx sync checks.
+5. Verify SMTP/provider configuration only with safe test credentials.
+6. Review the Git diff and keep root .env and .env.local out of staging.
