@@ -98,12 +98,17 @@ export default function SellerProductsPage() {
             <p className="catalog-eyebrow">SELL WITH ESHOP</p>
             <h1>Your products</h1>
           </div>
-          <Link
-            className="auth-submit seller-products-add"
-            href="/seller/products/new"
-          >
-            Add product
-          </Link>
+          <div className="seller-header-nav-actions">
+            <Link className="auth-secondary" href="/seller/payments">
+              Payout settings
+            </Link>
+            <Link
+              className="auth-submit seller-products-add"
+              href="/seller/products/new"
+            >
+              Add product
+            </Link>
+          </div>
         </div>
 
         {state === 'checking' && (

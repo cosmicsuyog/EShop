@@ -255,6 +255,49 @@ export const createSellerShop = async (values: {
 
 export const logoutSeller = () => sellerApi.post('/api/logout-seller');
 
+export type StripeAccountStatus = {
+  connected: boolean;
+  stripeId: string | null;
+  detailsSubmitted: boolean;
+  payoutsEnabled: boolean;
+  chargesEnabled: boolean;
+  currency?: string;
+};
+
+export const createStripeConnectLink = async (urls?: {
+  refresh_url?: string;
+  return_url?: string;
+}) => {
+  const { data } = await sellerApi.post('/api/create-stripe-link', urls ?? {});
+  if (!data || typeof data !== 'object' || typeof data.url !== 'string') {
+    throw new Error('Failed to generate Stripe onboarding link.');
+  }
+  return { url: data.url as string, data: data.data };
+};
+
+export const getStripeAccountStatus = async (): Promise<StripeAccountStatus> => {
+  const { data } = await sellerApi.get('/api/stripe-account-status');
+  if (!data || typeof data !== 'object') {
+    throw new Error('Failed to retrieve Stripe account status.');
+  }
+  return {
+    connected: Boolean(data.connected),
+    stripeId: (data.stripeId as string) || null,
+    detailsSubmitted: Boolean(data.detailsSubmitted),
+    payoutsEnabled: Boolean(data.payoutsEnabled),
+    chargesEnabled: Boolean(data.chargesEnabled),
+    currency: (data.currency as string) || undefined,
+  };
+};
+
+export const createStripeDashboardLink = async (): Promise<string> => {
+  const { data } = await sellerApi.post('/api/create-stripe-dashboard-link');
+  if (!data || typeof data !== 'object' || typeof data.url !== 'string') {
+    throw new Error('Failed to generate Stripe dashboard link.');
+  }
+  return data.url;
+};
+
 export const getSellerApiErrorMessage = (error: unknown) => {
   if (
     axios.isAxiosError(error) &&

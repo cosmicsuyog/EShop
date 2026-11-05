@@ -23,6 +23,12 @@ import {
   registerSeller,
   verifySeller,
 } from '../controllers/seller.controller';
+import {
+  createStripeConnectLink,
+  createStripeDashboardLink,
+  getStripeAccountStatus,
+  handleStripeWebhook,
+} from '../controllers/stripe.controller';
 import { requireAuthenticatedSeller } from '../middleware/seller-auth.middleware';
 
 const router: Router = express.Router();
@@ -44,5 +50,9 @@ router.get('/logged-in-seller', requireAuthenticatedSeller, getLoggedInSeller);
 router.post('/refresh-seller-token', refreshSellerAccessToken);
 router.post('/logout-seller', logoutSeller);
 router.post('/create-shop', requireAuthenticatedSeller, createShop);
+router.post('/create-stripe-link', requireAuthenticatedSeller, createStripeConnectLink);
+router.get('/stripe-account-status', requireAuthenticatedSeller, getStripeAccountStatus);
+router.post('/create-stripe-dashboard-link', requireAuthenticatedSeller, createStripeDashboardLink);
+router.post('/stripe-webhook', handleStripeWebhook);
 
 export default router;

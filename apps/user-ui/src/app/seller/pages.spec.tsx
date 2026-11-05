@@ -4,6 +4,7 @@ import SellerLoginPage from './login/page';
 import SellerRegisterPage from './register/page';
 import SellerProductsPage from './products/page';
 import NewSellerProductPage from './products/new/page';
+import SellerPaymentsPage from './payments/page';
 
 jest.mock('next/link', () => {
   const { createElement } = require('react');
@@ -23,6 +24,7 @@ jest.mock('next/link', () => {
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ replace: jest.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 jest.mock('../components/StoreHeader', () => ({
@@ -66,5 +68,14 @@ describe('seller onboarding pages', () => {
 
     expect(markup).toContain('Add a product');
     expect(markup).toContain('Checking seller session');
+  });
+
+  it('renders the payments page with a session and payout check', () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(SellerPaymentsPage)
+    );
+
+    expect(markup).toContain('Payouts &amp; Bank Account');
+    expect(markup).toContain('Checking seller session and payment account');
   });
 });
