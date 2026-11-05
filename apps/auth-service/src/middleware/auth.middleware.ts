@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import prisma from '@packages/libs/prisma/index.js';
 import { AuthError } from '@packages/error-handler/index';
 import { verifyUserToken } from '../utils/sessionTokens';
+import redis from 'Packages/libs/redis';
 
 export type AuthenticatedUser = {
   id: string;
@@ -44,17 +45,26 @@ export const requireAuthenticatedUser = async (
       process.env.ACCESS_TOKEN_SECRET,
       'access'
     );
+    const activeUserId = await redis.get(`user_refresh_session:${claims.jti}`);
+    if (activeUserId !== claims.id) {
+      return next(new AuthError('Access token has been revoked.'));
+    }
     const user = await prisma.users.findUnique({
       where: { id: claims.id },
       select: {
         id: true,
         email: true,
         name: true,
+        sessionVersion: true,
       },
     });
 
     if (!user) {
       return next(new AuthError('Authenticated user no longer exists.'));
+    }
+
+    if ((user.sessionVersion ?? 0) !== claims.sessionVersion) {
+      return next(new AuthError('Access token has been revoked.'));
     }
 
     req.authenticatedUser = {

@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import prisma from '@packages/libs/prisma/index.js';
+import redis from 'Packages/libs/redis';
 import { errorMiddleware } from '@packages/error-handler/error-middleware';
 import router from './auth.router';
 
@@ -69,14 +70,23 @@ type HttpResponse = {
 };
 
 const tokenFor = (userId: string) =>
-  jwt.sign({ id: userId, role: 'user', tokenUse: 'access' }, ACCESS_SECRET, {
-    expiresIn: '5m',
-  });
+  jwt.sign(
+    {
+      id: userId,
+      role: 'user',
+      tokenUse: 'access',
+      jti: `cart-session-${userId}`,
+      sessionVersion: 0,
+    },
+    ACCESS_SECRET,
+    { expiresIn: '5m' }
+  );
 
 describe('authenticated customer cart routes', () => {
   let server: Server;
   let port: number;
   const userFindUnique = jest.mocked(prisma.users.findUnique);
+  const redisGet = jest.mocked(redis.get);
   const cartUpsert = jest.mocked(prisma.carts.upsert);
   const cartItemFindMany = jest.mocked(prisma.cartItems.findMany);
   const cartItemFindUnique = jest.mocked(prisma.cartItems.findUnique);
@@ -131,12 +141,17 @@ describe('authenticated customer cart routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     itemsByCart.clear();
+    redisGet.mockImplementation(async (key) => {
+      const match = /cart-session-(.+)$/.exec(key);
+      return match?.[1] ?? null;
+    });
     userFindUnique.mockImplementation(
       async ({ where }) =>
         ({
           id: where.id,
           email: 'customer@example.com',
           name: 'Customer',
+          sessionVersion: 0,
         } as never)
     );
     cartUpsert.mockImplementation(

@@ -1,9 +1,11 @@
 import { sellerApi } from './sellerApi';
 import {
   createSellerProduct,
+  deleteSellerProductImage,
   deleteSellerProduct,
   getSellerProducts,
   restoreSellerProduct,
+  uploadSellerProductImage,
 } from './sellerProductApi';
 
 const product = {
@@ -19,9 +21,17 @@ describe('seller product API client', () => {
   const post = jest.spyOn(sellerApi, 'post');
   const deleteRequest = jest.spyOn(sellerApi, 'delete');
   const put = jest.spyOn(sellerApi, 'put');
+  const originalFileReader = globalThis.FileReader;
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, 'FileReader', {
+      configurable: true,
+      value: originalFileReader,
+    });
   });
 
   it('fetches the authenticated seller product list', async () => {
@@ -67,6 +77,50 @@ describe('seller product API client', () => {
     );
     expect(put).toHaveBeenCalledWith(
       `/product/api/restore-product/${productId}`
+    );
+  });
+
+  it('uploads supported seller images through the authenticated product API', async () => {
+    Object.defineProperty(globalThis, 'FileReader', {
+      configurable: true,
+      value: class {
+        result: string | null = null;
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        readAsDataURL() {
+          this.result = 'data:image/png;base64,iVBORw0KGgo=';
+          this.onload?.();
+        }
+      },
+    });
+    post.mockResolvedValue({
+      data: {
+        fileId: 'imagekit-file_123',
+        file_url: 'https://ik.imagekit.io/eshop/products/test.png',
+      },
+    } as never);
+
+    const file = { type: 'image/png', size: 64 } as File;
+    await expect(uploadSellerProductImage(file)).resolves.toEqual({
+      fileId: 'imagekit-file_123',
+      file_url: 'https://ik.imagekit.io/eshop/products/test.png',
+    });
+    expect(post).toHaveBeenCalledWith('/product/api/upload-product-image', {
+      fileName: 'data:image/png;base64,iVBORw0KGgo=',
+    });
+
+    Object.defineProperty(globalThis, 'FileReader', {
+      configurable: true,
+      value: originalFileReader,
+    });
+  });
+
+  it('removes only an uploaded image through the seller API', async () => {
+    deleteRequest.mockResolvedValue({ data: { success: true } } as never);
+    await deleteSellerProductImage('imagekit-file_123');
+    expect(deleteRequest).toHaveBeenCalledWith(
+      '/product/api/delete-product-image',
+      { data: { fileId: 'imagekit-file_123' } }
     );
   });
 

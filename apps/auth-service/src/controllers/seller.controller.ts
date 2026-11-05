@@ -24,7 +24,7 @@ import {
   signSellerToken,
   verifySellerToken,
 } from '../utils/sessionTokens';
-import { trustedUserInterfaceOrigin } from '../utils/trustedOrigin';
+import { trustedSellerInterfaceOrigin } from '../utils/trustedOrigin';
 
 type SellerRegistrationData = {
   name: string;
@@ -134,7 +134,8 @@ const setSellerSession = async (res: Response, sellerId: string) => {
   const accessToken = signSellerToken(
     sellerId,
     'access',
-    process.env.ACCESS_TOKEN_SECRET ?? ''
+    process.env.ACCESS_TOKEN_SECRET ?? '',
+    refreshTokenId
   );
   const refreshToken = signSellerToken(
     sellerId,
@@ -340,7 +341,7 @@ export const refreshSellerAccessToken = async (
   res: Response,
   next: NextFunction
 ) => {
-  if (req.get('origin') !== trustedUserInterfaceOrigin) {
+  if (req.get('origin') !== trustedSellerInterfaceOrigin) {
     return next(
       new ForbiddenError('Refresh requests must come from the storefront.')
     );
@@ -375,7 +376,8 @@ export const refreshSellerAccessToken = async (
     const accessToken = signSellerToken(
       seller.id,
       'access',
-      process.env.ACCESS_TOKEN_SECRET ?? ''
+      process.env.ACCESS_TOKEN_SECRET ?? '',
+      refreshTokenId
     );
     const rotated = Number(
       await redis.eval(
@@ -425,7 +427,7 @@ export const logoutSeller = async (
   res: Response,
   next: NextFunction
 ) => {
-  if (req.get('origin') !== trustedUserInterfaceOrigin) {
+  if (req.get('origin') !== trustedSellerInterfaceOrigin) {
     return next(
       new ForbiddenError('Logout requests must come from the storefront.')
     );

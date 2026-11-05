@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { SellerHeader } from '../../../components/SellerHeader';
 import {
   getCurrentSeller,
@@ -10,6 +10,9 @@ import {
 } from '../../../lib/sellerApi';
 import {
   createSellerProduct,
+  deleteSellerProductImage,
+  uploadSellerProductImage,
+  UploadedSellerProductImage,
   SellerProductInput,
 } from '../../../lib/sellerProductApi';
 
@@ -82,6 +85,10 @@ export default function NewSellerProductPage() {
   const [values, setValues] = useState(initialValues);
   const [state, setState] = useState<PageState>('checking');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [removingImageId, setRemovingImageId] = useState<string | null>(null);
+  const [images, setImages] = useState<UploadedSellerProductImage[]>([]);
+  const [imageError, setImageError] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -111,6 +118,43 @@ export default function NewSellerProductPage() {
 
   const update = (field: keyof FormValues, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
+  };
+
+  const uploadImages = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = '';
+    setImageError('');
+    if (images.length + selectedFiles.length > 8) {
+      setImageError('A product can have at most 8 images.');
+      return;
+    }
+
+    setIsUploadingImages(true);
+    try {
+      for (const file of selectedFiles) {
+        const image = await uploadSellerProductImage(file);
+        setImages((current) => [...current, image]);
+      }
+    } catch (uploadError) {
+      setImageError(getSellerApiErrorMessage(uploadError));
+    } finally {
+      setIsUploadingImages(false);
+    }
+  };
+
+  const removeImage = async (image: UploadedSellerProductImage) => {
+    setImageError('');
+    setRemovingImageId(image.fileId);
+    try {
+      await deleteSellerProductImage(image.fileId);
+      setImages((current) =>
+        current.filter((uploaded) => uploaded.fileId !== image.fileId)
+      );
+    } catch (deleteError) {
+      setImageError(getSellerApiErrorMessage(deleteError));
+    } finally {
+      setRemovingImageId(null);
+    }
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -163,6 +207,9 @@ export default function NewSellerProductPage() {
         : {}),
       ...(optionalValue(values.cash_on_delivery)
         ? { cash_on_delivery: optionalValue(values.cash_on_delivery) }
+        : {}),
+      ...(images.length > 0
+        ? { images: images.map(({ fileId }) => ({ fileId })) }
         : {}),
     };
 
@@ -288,9 +335,47 @@ export default function NewSellerProductPage() {
             {field('video_url', 'Video URL', { type: 'url' })}
             {field('cash_on_delivery', 'Cash on delivery')}
 
+            <div className="seller-image-upload">
+              <label htmlFor="seller-product-images">
+                Product images (up to 8, PNG/JPEG/WebP, 5 MB each)
+              </label>
+              <input
+                accept="image/png,image/jpeg,image/webp"
+                disabled={isUploadingImages || isSubmitting || images.length >= 8}
+                id="seller-product-images"
+                multiple
+                onChange={(event) => void uploadImages(event)}
+                type="file"
+              />
+              <p className="seller-product-field-hint">
+                Images are uploaded to the configured image provider and can only be attached to products owned by your seller account.
+              </p>
+              {isUploadingImages && (
+                <p className="auth-notice" role="status">Uploading product image…</p>
+              )}
+              {imageError && <p className="auth-error" role="alert">{imageError}</p>}
+              {images.length > 0 && (
+                <div className="seller-image-grid" aria-label="Uploaded product images">
+                  {images.map((image) => (
+                    <figure className="seller-image-preview" key={image.fileId}>
+                      <img alt="Product upload preview" src={image.file_url} />
+                      <button
+                        className="seller-product-delete"
+                        disabled={isUploadingImages || isSubmitting || removingImageId !== null}
+                        onClick={() => void removeImage(image)}
+                        type="button"
+                      >
+                        {removingImageId === image.fileId ? 'Removing…' : 'Remove image'}
+                      </button>
+                    </figure>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
               className="auth-submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploadingImages || removingImageId !== null}
               type="submit"
             >
               {isSubmitting ? 'Creating product…' : 'Create product'}

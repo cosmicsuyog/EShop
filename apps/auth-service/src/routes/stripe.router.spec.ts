@@ -6,11 +6,16 @@ import type { AddressInfo } from 'node:net';
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
 import prisma from '@packages/libs/prisma/index.js';
+import redis from 'Packages/libs/redis';
 import { errorMiddleware } from '@packages/error-handler/error-middleware';
 import router from './auth.router';
 
 jest.mock('axios');
 const mockedAxios = jest.mocked(axios);
+jest.mock('Packages/libs/redis', () => ({
+  __esModule: true,
+  default: { get: jest.fn() },
+}));
 
 jest.mock('@packages/libs/prisma/index.js', () => ({
   __esModule: true,
@@ -41,7 +46,7 @@ type HttpResponse = {
 };
 
 const tokenFor = (id: string, role: 'seller' | 'user' = 'seller') =>
-  jwt.sign({ id, role, tokenUse: 'access' }, ACCESS_SECRET, {
+  jwt.sign({ id, jti: `stripe-session-${id}`, role, tokenUse: 'access' }, ACCESS_SECRET, {
     expiresIn: '5m',
   });
 
@@ -50,6 +55,7 @@ describe('Stripe Connect onboarding, status, and webhook routes', () => {
   let port: number;
   const sellerFindUnique = jest.mocked(prisma.sellers.findUnique);
   const sellerUpdate = jest.mocked(prisma.sellers.update);
+  const redisGet = jest.mocked(redis.get);
 
   beforeAll(async () => {
     process.env.ACCESS_TOKEN_SECRET = ACCESS_SECRET;
@@ -76,6 +82,10 @@ describe('Stripe Connect onboarding, status, and webhook routes', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    redisGet.mockImplementation(async (key) => {
+      const match = /stripe-session-(.+)$/.exec(key);
+      return match?.[1] ?? null;
+    });
   });
 
   const sendRequest = (

@@ -1,0 +1,21 @@
+{
+  "name": "@eshop/seller-ui-e2e",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "name": "seller-ui-e2e",
+    "implicitDependencies": ["seller-ui"],
+    "targets": {
+      "e2e": {
+        "executor": "@nx/playwright:playwright",
+        "outputs": ["{projectRoot}/test-results", "{projectRoot}/playwright-report"],
+        "options": {
+          "config": "apps/seller-ui-e2e/playwright.config.ts",
+          "skipInstall": true,
+          "workers": 1
+        },
+        "dependsOn": ["seller-ui:build"]
+      }
+    }
+  }
+}

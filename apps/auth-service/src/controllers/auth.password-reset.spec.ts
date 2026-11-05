@@ -97,7 +97,10 @@ describe('customer password reset authorization', () => {
     );
     expect(updateUser).toHaveBeenCalledWith({
       where: { id: 'reset-authorized-user' },
-      data: { password: 'new-hash' },
+      data: {
+        password: 'new-hash',
+        sessionVersion: { increment: 1 },
+      },
     });
     expect(response.clearCookie).toHaveBeenCalledWith(
       PASSWORD_RESET_COOKIE_NAME,

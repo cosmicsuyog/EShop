@@ -252,6 +252,18 @@ describe('API gateway routing', () => {
     expect(response.headers['access-control-allow-credentials']).toBe('true');
   });
 
+  it('allows credentialed requests from the separate seller app origin', async () => {
+    const response = await get(gatewayPort, '/gateway-health', {
+      origin: 'http://localhost:3001',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['access-control-allow-origin']).toBe(
+      'http://localhost:3001'
+    );
+    expect(response.headers['access-control-allow-credentials']).toBe('true');
+  });
+
   it('returns 502 when product-service is unavailable', async () => {
     const unavailableGateway = await startServer(
       createApp({

@@ -23,9 +23,7 @@ export default function LoginPage() {
       'logout'
     );
     if (logoutState === 'success') {
-      setNotice(
-        'You have signed out on this browser. Previously issued access tokens are not revoked.'
-      );
+      setNotice('You have signed out on this browser.');
     } else if (logoutState === 'failed') {
       setError(
         'We could not confirm sign out. Your server session may still be active.'

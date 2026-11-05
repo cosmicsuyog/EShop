@@ -12,6 +12,7 @@ jest.mock('Packages/libs/redis', () => ({
   __esModule: true,
   default: {
     eval: jest.fn(),
+    get: jest.fn(),
     set: jest.fn(),
   },
 }));
@@ -68,7 +69,7 @@ type HttpResponse = {
 };
 
 const tokenFor = (id: string, role: 'seller' | 'user' = 'seller') =>
-  jwt.sign({ id, role, tokenUse: 'access' }, ACCESS_SECRET, {
+  jwt.sign({ id, jti: `seller-session-${id}`, role, tokenUse: 'access' }, ACCESS_SECRET, {
     expiresIn: '5m',
   });
 
@@ -92,6 +93,7 @@ describe('seller authentication and owned-shop routes', () => {
   const shopFindUnique = jest.mocked(prisma.shops.findUnique);
   const shopCreate = jest.mocked(prisma.shops.create);
   const redisEval = jest.mocked(redis.eval);
+  const redisGet = jest.mocked(redis.get);
   const redisSet = jest.mocked(redis.set);
   const originalAccessSecret = process.env.ACCESS_TOKEN_SECRET;
   const originalRefreshSecret = process.env.REFRESH_TOKEN_SECRET;
@@ -139,6 +141,10 @@ describe('seller authentication and owned-shop routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     redisEval.mockResolvedValue(1);
+    redisGet.mockImplementation(async (key) => {
+      const match = /seller-session-(.+)$/.exec(key);
+      return match?.[1] ?? null;
+    });
     redisSet.mockResolvedValue('OK');
   });
 
@@ -548,7 +554,7 @@ describe('seller authentication and owned-shop routes', () => {
     sellerFindUnique.mockResolvedValue({ id: SELLER_A } as never);
 
     const response = await send('POST', '/api/refresh-seller-token', {
-      origin: 'http://localhost:3000',
+      origin: 'http://localhost:3001',
       cookie: `seller-refresh-token=${refreshTokenFor()}`,
     });
     const cookies = response.headers['set-cookie'] as string[];
@@ -574,11 +580,11 @@ describe('seller authentication and owned-shop routes', () => {
     sellerFindUnique.mockResolvedValue({ id: SELLER_A } as never);
 
     const logoutResponse = await send('POST', '/api/logout-seller', {
-      origin: 'http://localhost:3000',
+      origin: 'http://localhost:3001',
       cookie: `seller-refresh-token=${refreshToken}`,
     });
     const refreshResponse = await send('POST', '/api/refresh-seller-token', {
-      origin: 'http://localhost:3000',
+      origin: 'http://localhost:3001',
       cookie: `seller-refresh-token=${refreshToken}`,
     });
 

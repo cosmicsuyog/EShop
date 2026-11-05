@@ -16,6 +16,8 @@ type UserTokenClaims = jwt.JwtPayload & {
   id: string;
   role: 'user';
   tokenUse: UserTokenUse;
+  jti: string;
+  sessionVersion: number;
 };
 
 export type SellerTokenUse = SharedSellerTokenUse;
@@ -23,29 +25,9 @@ export type SellerTokenUse = SharedSellerTokenUse;
 export const signUserToken = (
   userId: string,
   tokenUse: UserTokenUse,
-  secret: string
-) => {
-  if (!secret) {
-    throw new Error(
-      `${
-        tokenUse === 'access' ? 'ACCESS' : 'REFRESH'
-      }_TOKEN_SECRET is not configured.`
-    );
-  }
-
-  return jwt.sign({ id: userId, role: 'user', tokenUse }, secret, {
-    expiresIn:
-      tokenUse === 'access'
-        ? ACCESS_TOKEN_TTL_SECONDS
-        : REFRESH_TOKEN_TTL_SECONDS,
-  });
-};
-
-export const signSellerToken = (
-  sellerId: string,
-  tokenUse: SellerTokenUse,
   secret: string,
-  jti?: string
+  jti: string,
+  sessionVersion: number
 ) => {
   if (!secret) {
     throw new Error(
@@ -56,7 +38,33 @@ export const signSellerToken = (
   }
 
   return jwt.sign(
-    { id: sellerId, role: 'seller', tokenUse, ...(jti ? { jti } : {}) },
+    { id: userId, role: 'user', tokenUse, jti, sessionVersion },
+    secret,
+    {
+    expiresIn:
+      tokenUse === 'access'
+        ? ACCESS_TOKEN_TTL_SECONDS
+        : REFRESH_TOKEN_TTL_SECONDS,
+    }
+  );
+};
+
+export const signSellerToken = (
+  sellerId: string,
+  tokenUse: SellerTokenUse,
+  secret: string,
+  jti: string
+) => {
+  if (!secret) {
+    throw new Error(
+      `${
+        tokenUse === 'access' ? 'ACCESS' : 'REFRESH'
+      }_TOKEN_SECRET is not configured.`
+    );
+  }
+
+  return jwt.sign(
+    { id: sellerId, role: 'seller', tokenUse, jti },
     secret,
     {
       expiresIn:
@@ -96,6 +104,10 @@ export const verifyUserToken = (
     payload.id.length === 0 ||
     payload.role !== 'user' ||
     payload.tokenUse !== tokenUse ||
+    typeof payload.jti !== 'string' ||
+    payload.jti.length === 0 ||
+    !Number.isInteger(payload.sessionVersion) ||
+    (payload.sessionVersion as number) < 0 ||
     typeof payload.exp !== 'number' ||
     payload.exp <= Math.floor(Date.now() / 1000)
   ) {

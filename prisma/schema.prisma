@@ -10,12 +10,15 @@ datasource db {
 
 model images {
   id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  file_id   String
+  file_id   String    @unique
   url       String
   userId    String?   @unique @db.ObjectId
   users     users?    @relation(fields: [userId], references: [id])
   productId String?   @db.ObjectId
   products  products? @relation(fields: [productId], references: [id])
+  sellerId  String?   @db.ObjectId
+  sellers   sellers?  @relation(fields: [sellerId], references: [id])
+  isDeleting Boolean  @default(false)
 }
 
 model users {
@@ -23,6 +26,7 @@ model users {
   name      String
   email     String   @unique
   password  String?
+  sessionVersion Int  @default(0)
   following String[]
   avatar    images?
   createdAt DateTime @default(now())
@@ -59,6 +63,7 @@ model sellers {
   password       String
   stripeId       String?          @unique
   shop           shops?
+  images         images[]
   discount_codes discount_codes[]
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt

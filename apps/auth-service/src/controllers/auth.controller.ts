@@ -1,5 +1,6 @@
 // Register a new user
 import { NextFunction, Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import {
   checkOtpRestrictions,
   consumePasswordResetGrant,
@@ -22,6 +23,8 @@ import {
 import bcrypt from "bcryptjs"
 import { setCookie } from '../utils/cookies/setCookies';
 import { signUserToken } from '../utils/sessionTokens';
+import redis from 'Packages/libs/redis';
+import { REFRESH_TOKEN_TTL_SECONDS } from '../utils/sessionTokens';
 import { trustedUserInterfaceOrigin } from '../utils/trustedOrigin';
 
 
@@ -104,15 +107,27 @@ export const loginUser = async(req:Request,res:Response,next:NextFunction)=>{
     }
 
     // generate access and refresh token 
+    const sessionId = randomUUID();
+    const sessionVersion = user.sessionVersion ?? 0;
     const accessToken = signUserToken(
       user.id,
       'access',
-      process.env.ACCESS_TOKEN_SECRET as string
+      process.env.ACCESS_TOKEN_SECRET as string,
+      sessionId,
+      sessionVersion
     );
     const refreshToken = signUserToken(
       user.id,
       'refresh',
-      process.env.REFRESH_TOKEN_SECRET as string
+      process.env.REFRESH_TOKEN_SECRET as string,
+      sessionId,
+      sessionVersion
+    );
+    await redis.set(
+      `user_refresh_session:${sessionId}`,
+      user.id,
+      'EX',
+      REFRESH_TOKEN_TTL_SECONDS
     );
     // store the refresh and access token in an httpOnly secure cookie
     setCookie(res,"refreshToken",refreshToken)
@@ -207,7 +222,10 @@ export const resetUserPassword = async(
 
     await prisma.users.update({
       where: { id: user.id },
-      data: { password: hashedPassword },
+      data: {
+        password: hashedPassword,
+        sessionVersion: { increment: 1 },
+      },
     });
 
     res.clearCookie(PASSWORD_RESET_COOKIE_NAME, {

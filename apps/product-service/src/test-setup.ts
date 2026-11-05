@@ -9,6 +9,14 @@ jest.mock('@packages/libs/prisma/index.js', () => ({
       updateMany: jest.fn(),
       count: jest.fn(),
     },
+    images: {
+      count: jest.fn(),
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      updateMany: jest.fn(),
+      delete: jest.fn(),
+    },
     sellers: {
       findUnique: jest.fn(),
     },
@@ -24,4 +32,9 @@ jest.mock('@packages/libs/prisma/index.js', () => ({
       count: jest.fn(),
     },
   },
+}));
+
+jest.mock('Packages/libs/redis/index.js', () => ({
+  __esModule: true,
+  default: { get: jest.fn() },
 }));

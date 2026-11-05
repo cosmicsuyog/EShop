@@ -1,6 +1,7 @@
 import { request, type Server } from 'node:http';
 import jwt from 'jsonwebtoken';
 import prisma from '@packages/libs/prisma/index.js';
+import redis from 'Packages/libs/redis/index.js';
 import { createApp } from '../app.js';
 
 describe('product catalog routes', () => {
@@ -12,8 +13,12 @@ describe('product catalog routes', () => {
   const create = jest.mocked(prisma.products.create);
   const updateMany = jest.mocked(prisma.products.updateMany);
   const count = jest.mocked(prisma.products.count);
+  const countUploadedImages = jest.mocked(prisma.images.count);
+  const findUploadedImage = jest.mocked(prisma.images.findFirst);
+  const findUploadedImages = jest.mocked(prisma.images.findMany);
   const findSeller = jest.mocked(prisma.sellers.findUnique);
   const findShop = jest.mocked(prisma.shops.findUnique);
+  const redisGet = jest.mocked(redis.get);
   const accessTokenSecret = 'product-service-test-access-secret';
 
   beforeAll(async () => {
@@ -40,8 +45,12 @@ describe('product catalog routes', () => {
     create.mockReset();
     updateMany.mockReset();
     count.mockReset();
+    countUploadedImages.mockReset();
+    findUploadedImage.mockReset();
+    findUploadedImages.mockReset();
     findSeller.mockReset();
     findShop.mockReset();
+    redisGet.mockReset();
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
@@ -54,6 +63,9 @@ describe('product catalog routes', () => {
     create.mockReset();
     updateMany.mockReset();
     count.mockReset();
+    countUploadedImages.mockReset();
+    findUploadedImage.mockReset();
+    findUploadedImages.mockReset();
     findSeller.mockReset();
     findShop.mockReset();
   });
@@ -102,7 +114,7 @@ describe('product catalog routes', () => {
   const getProducts = (path = '/api/products') => sendRequest('GET', path);
   const sellerAccessToken = (sellerId = '507f1f77bcf86cd799439001') =>
     jwt.sign(
-      { id: sellerId, role: 'seller', tokenUse: 'access' },
+      { id: sellerId, jti: `product-session-${sellerId}`, role: 'seller', tokenUse: 'access' },
       accessTokenSecret,
       { expiresIn: 900 }
     );
@@ -110,6 +122,7 @@ describe('product catalog routes', () => {
     sellerId = '507f1f77bcf86cd799439001',
     shopId = '507f1f77bcf86cd799439002'
   ) => {
+    redisGet.mockResolvedValue(sellerId);
     findSeller.mockResolvedValue({
       id: sellerId,
       email: 'seller@example.com',
@@ -1037,6 +1050,65 @@ describe('product catalog routes', () => {
     expect(response.statusCode).toBe(500);
     expect(JSON.parse(response.body)).toEqual({
       error: 'Something wen wrong,please try again!',
+    });
+  });
+
+  it('requires authenticated seller identity for product image operations', async () => {
+    const unauthorized = await sendRequest('POST', '/api/upload-product-image', {
+      fileName: 'data:image/png;base64,invalid',
+    });
+
+    expect(unauthorized.statusCode).toBe(401);
+    expect(countUploadedImages).not.toHaveBeenCalled();
+
+    const token = authenticateSeller();
+    findUploadedImage.mockResolvedValue(null as never);
+    const crossSellerDelete = await sendRequest(
+      'DELETE',
+      '/api/delete-product-image',
+      { fileId: 'imagekit-file_123' },
+      token
+    );
+
+    expect(crossSellerDelete.statusCode).toBe(404);
+    expect(findUploadedImage).toHaveBeenCalledWith({
+      where: {
+        file_id: 'imagekit-file_123',
+        sellerId: '507f1f77bcf86cd799439001',
+        productId: null,
+        isDeleting: false,
+      },
+      select: { id: true },
+    });
+  });
+
+  it('rejects product images that are not owned by the authenticated seller', async () => {
+    const token = authenticateSeller();
+    findUnique.mockResolvedValue(null as never);
+    findUploadedImages.mockResolvedValue([] as never);
+
+    const response = await sendRequest(
+      'POST',
+      '/api/create-product',
+      {
+        ...productInput,
+        images: [{ fileId: 'imagekit-file_owned-by-someone-else' }],
+      },
+      token
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).message).toContain(
+      'One or more uploaded images are not available to this seller.'
+    );
+    expect(findUploadedImages).toHaveBeenCalledWith({
+      where: {
+        file_id: { in: ['imagekit-file_owned-by-someone-else'] },
+        sellerId: '507f1f77bcf86cd799439001',
+        productId: null,
+        isDeleting: false,
+      },
+      select: { id: true, file_id: true },
     });
   });
 });

@@ -4,6 +4,7 @@ import { request, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import jwt from 'jsonwebtoken';
 import prisma from '@packages/libs/prisma/index.js';
+import redis from 'Packages/libs/redis';
 import { errorMiddleware } from '@packages/error-handler/error-middleware';
 import router from './auth.router';
 
@@ -12,7 +13,17 @@ jest.mock('@packages/libs/prisma/index.js', () => ({
   default: {
     users: {
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
+  },
+}));
+
+jest.mock('Packages/libs/redis', () => ({
+  __esModule: true,
+  default: {
+    eval: jest.fn().mockResolvedValue(1),
+    get: jest.fn().mockResolvedValue('507f1f77bcf86cd799439011'),
+    set: jest.fn().mockResolvedValue('OK'),
   },
 }));
 
@@ -39,6 +50,7 @@ const user = {
   email: 'customer@example.com',
   name: 'Customer',
   password: 'stored-password-hash',
+  sessionVersion: 0,
 };
 
 type HttpResponse = {
@@ -52,14 +64,27 @@ const signToken = (
   secret: string,
   expiresIn = '5m'
 ) =>
-  jwt.sign({ id: USER_ID, role: 'user', tokenUse }, secret, {
+  jwt.sign(
+    {
+      id: USER_ID,
+      role: 'user',
+      tokenUse,
+      jti: 'test-session',
+      sessionVersion: 0,
+    },
+    secret,
+    {
     expiresIn,
-  } as jwt.SignOptions);
+    } as jwt.SignOptions
+  );
 
 describe('customer session endpoints', () => {
   let server: Server;
   let port: number;
   const findUnique = jest.mocked(prisma.users.findUnique);
+  const redisGet = jest.mocked(redis.get);
+  const redisEval = jest.mocked(redis.eval);
+  const redisSet = jest.mocked(redis.set);
   const originalAccessSecret = process.env.ACCESS_TOKEN_SECRET;
   const originalRefreshSecret = process.env.REFRESH_TOKEN_SECRET;
 
@@ -108,6 +133,9 @@ describe('customer session endpoints', () => {
 
   beforeEach(() => {
     findUnique.mockReset();
+    redisGet.mockReset().mockResolvedValue(USER_ID);
+    redisEval.mockReset().mockResolvedValue(1);
+    redisSet.mockReset().mockResolvedValue('OK');
   });
 
   const send = (
@@ -164,7 +192,10 @@ describe('customer session endpoints', () => {
     });
 
   const logout = (origin = 'http://localhost:3000') =>
-    send('POST', '/api/auth/logout-user', { origin });
+    send('POST', '/api/auth/logout-user', {
+      origin,
+      cookie: `refreshToken=${signToken('refresh', REFRESH_SECRET)}`,
+    });
 
   it('issues distinct typed access and refresh tokens during login', async () => {
     findUnique.mockResolvedValue(user as never);
@@ -190,11 +221,22 @@ describe('customer session endpoints', () => {
     expect(jwt.verify(accessToken as string, ACCESS_SECRET)).toMatchObject({
       tokenUse: 'access',
       role: 'user',
+      sessionVersion: 0,
     });
-    expect(jwt.verify(refreshToken as string, REFRESH_SECRET)).toMatchObject({
+    const accessClaims = jwt.verify(accessToken as string, ACCESS_SECRET) as jwt.JwtPayload;
+    const refreshClaims = jwt.verify(refreshToken as string, REFRESH_SECRET) as jwt.JwtPayload;
+    expect(refreshClaims).toMatchObject({
       tokenUse: 'refresh',
       role: 'user',
+      sessionVersion: 0,
     });
+    expect(accessClaims.jti).toBe(refreshClaims.jti);
+    expect(redisSet).toHaveBeenCalledWith(
+      `user_refresh_session:${refreshClaims.jti}`,
+      USER_ID,
+      'EX',
+      604800
+    );
   });
 
   it.each([
@@ -234,7 +276,7 @@ describe('customer session endpoints', () => {
     });
     expect(findUnique).toHaveBeenCalledWith({
       where: { id: USER_ID },
-      select: { id: true, email: true, name: true },
+      select: { id: true, email: true, name: true, sessionVersion: true },
     });
   });
 
@@ -315,7 +357,7 @@ describe('customer session endpoints', () => {
     expect(findUnique).not.toHaveBeenCalled();
   });
 
-  it('issues only a short-lived access cookie for a valid refresh token', async () => {
+  it('rotates a valid refresh token and issues matching access and refresh cookies', async () => {
     findUnique.mockResolvedValue(user as never);
 
     const response = await refresh(
@@ -326,15 +368,16 @@ describe('customer session endpoints', () => {
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
       success: true,
-      message: 'Access token refreshed successfully.',
+      message: 'Session refreshed successfully.',
     });
-    expect(setCookies).toHaveLength(1);
+    expect(setCookies).toHaveLength(2);
     expect(setCookies[0]).toContain('accessToken=');
     expect(setCookies[0]).toContain('Max-Age=900');
     expect(setCookies[0]).toContain('HttpOnly');
     expect(setCookies[0]).toContain('Secure');
     expect(setCookies[0]).toContain('SameSite=None');
-    expect(setCookies[0]).not.toContain('refreshToken=');
+    expect(setCookies[1]).toContain('refreshToken=');
+    expect(setCookies[1]).toContain('Max-Age=604800');
 
     const accessToken = setCookies[0].match(/accessToken=([^;]+)/)?.[1];
     expect(accessToken).toBeDefined();
@@ -343,6 +386,31 @@ describe('customer session endpoints', () => {
       role: 'user',
       tokenUse: 'access',
     });
+    const refreshToken = setCookies[1].match(/refreshToken=([^;]+)/)?.[1];
+    const accessClaims = jwt.verify(accessToken as string, ACCESS_SECRET) as jwt.JwtPayload;
+    const refreshClaims = jwt.verify(refreshToken as string, REFRESH_SECRET) as jwt.JwtPayload;
+    expect(accessClaims.jti).toBe(refreshClaims.jti);
+    expect(redisEval).toHaveBeenCalled();
+  });
+
+  it('rejects an access token after its refresh session has been revoked', async () => {
+    redisGet.mockResolvedValueOnce(null);
+    const response = await getCurrentUser({
+      cookie: `accessToken=${signToken('access', ACCESS_SECRET)}`,
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects access tokens issued before the user password was reset', async () => {
+    findUnique.mockResolvedValue({ ...user, sessionVersion: 1 } as never);
+    const response = await getCurrentUser({
+      cookie: `accessToken=${signToken('access', ACCESS_SECRET)}`,
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(JSON.parse(response.body).message).toContain('revoked');
   });
 
   it('rejects refresh tokens for deleted users', async () => {
@@ -356,15 +424,14 @@ describe('customer session endpoints', () => {
     expect(response.headers['set-cookie']).toBeUndefined();
   });
 
-  it('clears both authentication cookies without claiming token revocation', async () => {
+  it('revokes the current session and clears both authentication cookies', async () => {
     const response = await logout();
     const setCookies = response.headers['set-cookie'] as string[];
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
       success: true,
-      message:
-        'Signed out on this browser. Previously issued access tokens are not revoked.',
+      message: 'Signed out on this browser.',
     });
     expect(setCookies).toHaveLength(2);
     expect(setCookies[0]).toContain('accessToken=;');
@@ -376,7 +443,7 @@ describe('customer session endpoints', () => {
       expect(cookie).toContain('SameSite=None');
       expect(cookie).toContain('Expires=Thu, 01 Jan 1970');
     }
-    expect(findUnique).not.toHaveBeenCalled();
+    expect(redisEval).toHaveBeenCalled();
   });
 
   it('rejects logout requests from an untrusted origin', async () => {

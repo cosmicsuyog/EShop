@@ -15,6 +15,12 @@ export default {
   globalTeardown: '<rootDir>/src/support/global-teardown.ts',
   setupFiles: ['<rootDir>/src/support/test-setup.ts'],
   testEnvironment: 'node',
+  moduleNameMapper: {
+    '^@packages/(.*)\\.js$': '<rootDir>/../../Packages/$1',
+    '^@packages/(.*)$': '<rootDir>/../../Packages/$1',
+    '^Packages/(.*)$': '<rootDir>/../../Packages/$1',
+    '^([.]{1,2}/.*)\\.js$': '$1',
+  },
   transform: {
     '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig],
   },

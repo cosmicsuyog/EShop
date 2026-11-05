@@ -41,6 +41,12 @@ export type SellerProductInput = {
   video_url?: string;
   warranty?: string;
   cash_on_delivery?: string;
+  images?: { fileId: string }[];
+};
+
+export type UploadedSellerProductImage = {
+  fileId: string;
+  file_url: string;
 };
 
 const isSellerProduct = (value: unknown): value is SellerProduct =>
@@ -75,6 +81,61 @@ export const createSellerProduct = async (input: SellerProductInput) => {
     throw new Error('The product service returned an invalid product.');
   }
   return product;
+};
+
+const isUploadedSellerProductImage = (
+  value: unknown
+): value is UploadedSellerProductImage =>
+  Boolean(
+    value &&
+      typeof value === 'object' &&
+      'fileId' in value &&
+      typeof value.fileId === 'string' &&
+      'file_url' in value &&
+      typeof value.file_url === 'string'
+  );
+
+const fileToDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('The selected image could not be read.'));
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('The selected image could not be read.'));
+        return;
+      }
+      resolve(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+
+export const uploadSellerProductImage = async (file: File) => {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    throw new Error('Choose a PNG, JPEG, or WebP image.');
+  }
+  if (file.size === 0 || file.size > 5 * 1024 * 1024) {
+    throw new Error('Images must be smaller than 5 MB.');
+  }
+
+  const dataUrl = await fileToDataUrl(file);
+  const { data } = await sellerApi.post('/product/api/upload-product-image', {
+    fileName: dataUrl,
+  });
+  const image: unknown = {
+    fileId: data?.fileId,
+    file_url: data?.file_url,
+  };
+  if (!isUploadedSellerProductImage(image)) {
+    throw new Error('The product service returned an invalid uploaded image.');
+  }
+  return image;
+};
+
+export const deleteSellerProductImage = async (fileId: string) => {
+  const { data } = await sellerApi.delete('/product/api/delete-product-image', {
+    data: { fileId },
+  });
+  return data;
 };
 
 export const deleteSellerProduct = async (productId: string) => {

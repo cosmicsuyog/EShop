@@ -16,6 +16,10 @@ import {
   deleteDiscountCodes,
   getDiscountCodes,
 } from '../controllers/seller-discount.controller.js';
+import {
+  deleteSellerProductImage,
+  uploadSellerProductImage,
+} from '../controllers/product-image.controller.js';
 import { requireAuthenticatedSeller } from '@packages/middleware/seller-auth.middleware.js';
 
 const router = Router();
@@ -35,6 +39,16 @@ router.put(
   '/restore-product/:productId',
   requireAuthenticatedSeller,
   restoreSellerProduct
+);
+router.post(
+  '/upload-product-image',
+  requireAuthenticatedSeller,
+  uploadSellerProductImage
+);
+router.delete(
+  '/delete-product-image',
+  requireAuthenticatedSeller,
+  deleteSellerProductImage
 );
 router.post(
   '/create-discount-code',

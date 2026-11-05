@@ -6,7 +6,7 @@ import productRouter from './routes/product.router.js';
 export const createApp = () => {
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: '7mb' }));
   app.use(cookieParser());
 
   app.get('/', (_req, res) => {

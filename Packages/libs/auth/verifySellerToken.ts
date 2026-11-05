@@ -5,7 +5,7 @@ export type SellerTokenUse = 'access' | 'refresh';
 
 type SellerTokenClaims = jwt.JwtPayload & {
   id: string;
-  jti?: string;
+  jti: string;
   role: 'seller';
   tokenUse: SellerTokenUse;
 };
@@ -37,10 +37,10 @@ export const verifySellerToken = (
     typeof payload === 'string' ||
     typeof payload.id !== 'string' ||
     payload.id.length === 0 ||
+    typeof payload.jti !== 'string' ||
+    payload.jti.length === 0 ||
     payload.role !== 'seller' ||
     payload.tokenUse !== tokenUse ||
-    (tokenUse === 'refresh' &&
-      (typeof payload.jti !== 'string' || payload.jti.length === 0)) ||
     typeof payload.exp !== 'number' ||
     payload.exp <= Math.floor(Date.now() / 1000)
   ) {

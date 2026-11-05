@@ -135,10 +135,10 @@ export class StripeService {
 
     const defaultRefreshUrl =
       process.env.STRIPE_REFRESH_URL ||
-      `${process.env.USER_UI_ORIGIN || 'http://localhost:3000'}/seller/payments?status=refresh`;
+      `${process.env.SELLER_UI_ORIGIN || 'http://localhost:3001'}/dashboard/payments?status=refresh`;
     const defaultReturnUrl =
       process.env.STRIPE_RETURN_URL ||
-      `${process.env.USER_UI_ORIGIN || 'http://localhost:3000'}/seller/payments?status=success`;
+      `${process.env.SELLER_UI_ORIGIN || 'http://localhost:3001'}/dashboard/payments?status=success`;
 
     const refreshUrl = customUrls?.refresh_url || defaultRefreshUrl;
     const returnUrl = customUrls?.return_url || defaultReturnUrl;

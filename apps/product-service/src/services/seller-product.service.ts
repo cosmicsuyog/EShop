@@ -4,6 +4,10 @@ import {
   NotFoundError,
   ValidationError,
 } from '@packages/error-handler/index.js';
+import {
+  getSellerImageIds,
+  validateProductImageIds,
+} from './product-image.service.js';
 
 const sellerProductSelect = {
   id: true,
@@ -137,6 +141,7 @@ const getProductInput = (body: unknown) => {
   const videoUrl = optionalText(input.video_url, 'Video URL', 2048);
   const brand = optionalText(input.brand, 'Brand', 100);
   const warranty = optionalText(input.warranty, 'Warranty', 500);
+  const imageIds = validateProductImageIds(input.images);
   const cashOnDelivery = optionalText(
     input.cash_on_delivery,
     'Cash on delivery',
@@ -168,6 +173,7 @@ const getProductInput = (body: unknown) => {
     ...(brand ? { brand } : {}),
     ...(warranty ? { warranty } : {}),
     ...(cashOnDelivery ? { cashOnDelivery } : {}),
+    imageIds,
   };
 };
 
@@ -225,6 +231,7 @@ const isUniqueConstraintError = (error: unknown) =>
 export const createSellerProduct = async (sellerId: string, body: unknown) => {
   const input = getProductInput(body);
   const shopId = await getOwnedShopId(sellerId);
+  const { imageIds, ...productInput } = input;
   const existingProduct = await prisma.products.findUnique({
     where: { slug: input.slug },
     select: { id: true },
@@ -235,10 +242,14 @@ export const createSellerProduct = async (sellerId: string, body: unknown) => {
   }
 
   try {
+    const images = await getSellerImageIds(sellerId, imageIds);
     return await prisma.products.create({
       data: {
-        ...input,
+        ...productInput,
         shopId,
+        ...(images.length > 0
+          ? { images: { connect: images.map(({ id }) => ({ id })) } }
+          : {}),
       },
       select: sellerProductSelect,
     });

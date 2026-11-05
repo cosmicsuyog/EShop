@@ -12,6 +12,7 @@ export default {
   displayName: 'auth-service',
   preset: '../../jest.preset.cjs',
   testEnvironment: 'node',
+  setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
   transform: {
     '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig],
   },

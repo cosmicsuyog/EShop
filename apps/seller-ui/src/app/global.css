@@ -1708,3 +1708,35 @@ p {
     padding: 28px 18px;
   }
 }
+.seller-image-upload {
+  display: grid;
+  gap: 10px;
+}
+
+.seller-image-upload input[type='file'] {
+  width: 100%;
+}
+
+.seller-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.seller-image-preview {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.seller-image-preview img {
+  width: 100%;
+  height: 130px;
+  border: 1px solid #d8dce4;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.seller-image-preview button {
+  font-size: 0.85rem;
+}

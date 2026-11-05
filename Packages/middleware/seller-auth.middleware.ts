@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { AuthError } from '../error-handler/index.js';
 import { verifySellerToken } from '../libs/auth/verifySellerToken.js';
+import redis from '../libs/redis/index.js';
 
 export type AuthenticatedSeller = {
   id: string;
@@ -45,6 +46,12 @@ export const requireAuthenticatedSeller = async (
       process.env.ACCESS_TOKEN_SECRET,
       'access'
     );
+    const activeSellerId = await redis.get(
+      `seller_refresh_session:${claims.jti}`
+    );
+    if (activeSellerId !== claims.id) {
+      return next(new AuthError('Seller access token has been revoked.'));
+    }
     const { default: prisma } = await import('../libs/prisma/index.js');
     const seller = await prisma.sellers.findUnique({
       where: { id: claims.id },
