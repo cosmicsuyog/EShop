@@ -499,6 +499,7 @@ export default function SellerRegisterPage() {
                 <p>{createdShop.name}</p>
                 <p>{createdShop.category}</p>
                 <Link href="/seller/payments">Set up payouts (Stripe Connect)</Link>
+                <Link href="/seller/discounts">Manage discount codes</Link>
                 <Link href="/seller/products">Manage products</Link>
                 <Link href="/">Continue to the storefront</Link>
                 <button

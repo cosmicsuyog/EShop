@@ -106,8 +106,11 @@ function SellerPaymentsContent() {
             <h1>Payouts & Bank Account</h1>
           </div>
           <div className="seller-header-nav-actions">
+            <Link className="auth-secondary" href="/seller/discounts">
+              Discounts
+            </Link>
             <Link className="auth-secondary" href="/seller/products">
-              Manage products
+              Products
             </Link>
           </div>
         </div>

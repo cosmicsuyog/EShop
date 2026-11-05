@@ -99,6 +99,9 @@ export default function SellerProductsPage() {
             <h1>Your products</h1>
           </div>
           <div className="seller-header-nav-actions">
+            <Link className="auth-secondary" href="/seller/discounts">
+              Discounts
+            </Link>
             <Link className="auth-secondary" href="/seller/payments">
               Payout settings
             </Link>

@@ -11,6 +11,11 @@ import {
   getSellerProducts,
   restoreSellerProduct,
 } from '../controllers/seller-product.controller.js';
+import {
+  createDiscountCodes,
+  deleteDiscountCodes,
+  getDiscountCodes,
+} from '../controllers/seller-discount.controller.js';
 import { requireAuthenticatedSeller } from '@packages/middleware/seller-auth.middleware.js';
 
 const router = Router();
@@ -30,6 +35,21 @@ router.put(
   '/restore-product/:productId',
   requireAuthenticatedSeller,
   restoreSellerProduct
+);
+router.post(
+  '/create-discount-code',
+  requireAuthenticatedSeller,
+  createDiscountCodes
+);
+router.get(
+  '/get-discount-codes',
+  requireAuthenticatedSeller,
+  getDiscountCodes
+);
+router.delete(
+  '/delete-discount-code/:id',
+  requireAuthenticatedSeller,
+  deleteDiscountCodes
 );
 
 export default router;

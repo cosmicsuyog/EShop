@@ -51,16 +51,29 @@ model shops {
 }
 
 model sellers {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  name         String
-  email        String   @unique
-  phone_number String
-  country      String
-  password     String
-  stripeId     String?  @unique
-  shop         shops?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  email          String           @unique
+  phone_number   String
+  country        String
+  password       String
+  stripeId       String?          @unique
+  shop           shops?
+  discount_codes discount_codes[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model discount_codes {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  public_name   String
+  discountType  String
+  discountValue Float
+  discountCode  String   @unique
+  sellerId      String   @db.ObjectId
+  sellers       sellers  @relation(fields: [sellerId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model products {

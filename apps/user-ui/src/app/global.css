@@ -1170,6 +1170,54 @@ p {
   flex: 0 0 auto;
 }
 
+.seller-discounts-container {
+  margin-top: 10px;
+}
+
+.seller-discounts-table-wrapper {
+  background: #fff;
+  border: 1px solid #e8e5de;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.seller-discounts-table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  text-align: left;
+  width: 100%;
+}
+
+.seller-discounts-table th,
+.seller-discounts-table td {
+  border-bottom: 1px solid #eee;
+  padding: 16px 20px;
+}
+
+.seller-discounts-table th {
+  background: #fcfbfa;
+  color: #77766f;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.seller-discounts-table tr:last-child td {
+  border-bottom: none;
+}
+
+.seller-code-tag {
+  background: #f1f0eb;
+  border: 1px solid #dedcd5;
+  border-radius: 4px;
+  color: #24231f;
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 4px 8px;
+}
+
 .account-profile {
   border-top: 1px solid #e8e5de;
   margin-top: 24px;

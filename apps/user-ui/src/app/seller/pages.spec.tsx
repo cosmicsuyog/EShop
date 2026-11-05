@@ -5,6 +5,7 @@ import SellerRegisterPage from './register/page';
 import SellerProductsPage from './products/page';
 import NewSellerProductPage from './products/new/page';
 import SellerPaymentsPage from './payments/page';
+import SellerDiscountsPage from './discounts/page';
 
 jest.mock('next/link', () => {
   const { createElement } = require('react');
@@ -77,5 +78,14 @@ describe('seller onboarding pages', () => {
 
     expect(markup).toContain('Payouts &amp; Bank Account');
     expect(markup).toContain('Checking seller session and payment account');
+  });
+
+  it('renders the discount codes page with a session and discount check', () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(SellerDiscountsPage)
+    );
+
+    expect(markup).toContain('Discount Codes');
+    expect(markup).toContain('Checking seller session and loading discount codes');
   });
 });
