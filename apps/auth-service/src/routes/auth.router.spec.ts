@@ -60,13 +60,17 @@ describe('auth router', () => {
     });
   });
 
-  it('routes password reset requests to the controller', async () => {
+  it.each([
+    '/api/forgot-password-user',
+    '/api/verify-forgot-password-user',
+    '/api/reset-password-user',
+  ])('routes customer password recovery requests at %s', async (path) => {
     const response = await new Promise<number>((resolve, reject) => {
       const req = request(
         {
           hostname: '127.0.0.1',
           port,
-          path: '/api/reset-password-user',
+          path,
           method: 'POST',
         },
         (res) => {

@@ -55,6 +55,41 @@ const get = (port: number, path: string, headers = {}) =>
     req.end();
   });
 
+const post = (port: number, path: string, body: unknown, headers = {}) =>
+  new Promise<HttpResponse>((resolve, reject) => {
+    const serializedBody = JSON.stringify(body);
+    const req = request(
+      {
+        hostname: '127.0.0.1',
+        port,
+        path,
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(serializedBody),
+          ...headers,
+        },
+      },
+      (res) => {
+        let responseBody = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk: string) => {
+          responseBody += chunk;
+        });
+        res.on('end', () => {
+          resolve({
+            statusCode: res.statusCode ?? 0,
+            headers: res.headers,
+            body: responseBody,
+          });
+        });
+      }
+    );
+
+    req.on('error', reject);
+    req.end(serializedBody);
+  });
+
 const closeServer = (server: Server) =>
   new Promise<void>((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()));
@@ -70,6 +105,11 @@ describe('API gateway routing', () => {
     authorization?: string;
     requestId?: string;
   };
+  let authResetRequest: {
+    url?: string;
+    cookie?: string;
+    body?: unknown;
+  };
 
   beforeAll(async () => {
     productUpstream = express()
@@ -82,9 +122,26 @@ describe('API gateway routing', () => {
         res.status(200).json({ service: 'product', products: [] });
       })
       .listen(0);
-    authUpstream = express()
+    const authApp = express();
+    authApp.use(express.json());
+    authUpstream = authApp
       .get('/account', (_req, res) => {
         res.status(200).json({ service: 'auth' });
+      })
+      .post('/api/reset-password-user', (req, res) => {
+        authResetRequest = {
+          url: req.originalUrl,
+          cookie: req.header('cookie'),
+          body: req.body,
+        };
+        res.cookie('passwordResetToken', '', {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'none',
+          path: '/api/reset-password-user',
+          maxAge: 0,
+        });
+        res.status(200).json({ message: 'Password reset successfully.' });
       })
       .listen(0);
 
@@ -117,15 +174,15 @@ describe('API gateway routing', () => {
     );
     gateway = gatewayInstance.server;
     gatewayPort = gatewayInstance.port;
-  });
+  }, 20_000);
 
   afterAll(async () => {
-    await Promise.all([
-      closeServer(gateway),
-      closeServer(productUpstream),
-      closeServer(authUpstream),
-    ]);
-  });
+    await Promise.all(
+      [gateway, productUpstream, authUpstream]
+        .filter((server): server is Server => Boolean(server))
+        .map(closeServer)
+    );
+  }, 20_000);
 
   it('proxies product requests with query parameters and request headers', async () => {
     const response = await get(
@@ -154,6 +211,30 @@ describe('API gateway routing', () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({ service: 'auth' });
+  });
+
+  it('forwards the reset cookie and relays its clearing header', async () => {
+    const response = await post(
+      gatewayPort,
+      '/api/reset-password-user',
+      { newPassword: 'new password' },
+      {
+        cookie: 'passwordResetToken=opaque-value',
+        origin: 'http://localhost:3000',
+      }
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(authResetRequest).toEqual({
+      url: '/api/reset-password-user',
+      cookie: 'passwordResetToken=opaque-value',
+      body: { newPassword: 'new password' },
+    });
+    expect(response.headers['set-cookie']).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('passwordResetToken=;'),
+      ])
+    );
   });
 
   it('preserves the gateway health endpoint without proxying', async () => {

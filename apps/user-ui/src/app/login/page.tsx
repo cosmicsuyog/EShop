@@ -111,6 +111,9 @@ export default function LoginPage() {
         </form>
 
         <p className="auth-switch">
+          <Link href="/forgot-password">Forgot your password?</Link>
+        </p>
+        <p className="auth-switch">
           New to EShop? <Link href="/register">Create an account</Link>
         </p>
       </section>

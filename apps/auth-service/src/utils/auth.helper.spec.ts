@@ -1,11 +1,25 @@
 import redis from 'Packages/libs/redis';
+import prisma from '@packages/libs/prisma';
 import { sendEmail } from './sendMail';
-import { sendOtp, trackOtpRequests, verifyOtp } from './auth.helper';
+import {
+  consumePasswordResetGrant,
+  createPasswordResetGrant,
+  getPasswordResetGrantUserId,
+  handleForgotPassword,
+  PASSWORD_RESET_COOKIE_NAME,
+  PASSWORD_RESET_COOKIE_PATH,
+  sendOtp,
+  trackOtpRequests,
+  verifyForgotPasswordOtp,
+  verifyOtp,
+} from './auth.helper';
+import type { NextFunction, Request, Response } from 'express';
 
 jest.mock('Packages/libs/redis', () => ({
   __esModule: true,
   default: {
     eval: jest.fn(),
+    get: jest.fn(),
     set: jest.fn(),
   },
 }));
@@ -16,18 +30,26 @@ jest.mock('./sendMail', () => ({
 
 jest.mock('@packages/libs/prisma', () => ({
   __esModule: true,
-  default: {},
+  default: {
+    users: {
+      findUnique: jest.fn(),
+    },
+  },
 }));
 
 describe('atomic OTP verification and request limits', () => {
   const redisEval = jest.mocked(redis.eval);
+  const redisGet = jest.mocked(redis.get);
   const redisSet = jest.mocked(redis.set);
   const sendEmailMock = jest.mocked(sendEmail);
+  const findUser = jest.mocked(prisma.users.findUnique);
 
   beforeEach(() => {
     redisEval.mockReset();
+    redisGet.mockReset();
     redisSet.mockReset();
     sendEmailMock.mockReset();
+    findUser.mockReset();
   });
 
   it('atomically accepts a valid OTP and consumes it once', async () => {
@@ -108,6 +130,136 @@ describe('atomic OTP verification and request limits', () => {
       storedOtp,
       'EX',
       300
+    );
+  });
+
+  it('uses the same accepted response for known and unknown reset emails', async () => {
+    const unknownResponse = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as unknown as Response;
+    const knownResponse = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as unknown as Response;
+    const next = jest.fn() as NextFunction;
+
+    findUser
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'user-1',
+        name: 'Customer',
+      } as never);
+    redisGet.mockResolvedValue(null);
+    redisEval.mockResolvedValue(1);
+    redisSet.mockResolvedValue('OK');
+    sendEmailMock.mockResolvedValue(true);
+
+    await handleForgotPassword(
+      { body: { email: 'missing@example.com' } } as Request,
+      unknownResponse,
+      next,
+      'user'
+    );
+    await handleForgotPassword(
+      { body: { email: 'customer@example.com' } } as Request,
+      knownResponse,
+      next,
+      'user'
+    );
+
+    expect(unknownResponse.status).toHaveBeenCalledWith(202);
+    expect(knownResponse.status).toHaveBeenCalledWith(202);
+    const responseBody = {
+      message: 'If an account exists, password reset instructions will be sent.',
+    };
+    expect(unknownResponse.json).toHaveBeenCalledWith(responseBody);
+    expect(knownResponse.json).toHaveBeenCalledWith(responseBody);
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      'customer@example.com',
+      'Verify your email',
+      'forgot-password-user-mail',
+      expect.objectContaining({ name: 'Customer', otp: expect.any(String) })
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('sets an opaque short-lived HttpOnly reset cookie after OTP verification', async () => {
+    const response = {
+      cookie: jest.fn(),
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as unknown as Response;
+    const next = jest.fn() as NextFunction;
+    redisEval.mockResolvedValue(0);
+    redisSet.mockResolvedValue('OK');
+    findUser.mockResolvedValue({
+      id: 'user-1',
+      name: 'Customer',
+    } as never);
+
+    await verifyForgotPasswordOtp(
+      {
+        body: { email: 'customer@example.com', otp: '123456' },
+      } as Request,
+      response,
+      next
+    );
+
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.json).toHaveBeenCalledWith({
+      message: 'Code verified. You can now choose a new password.',
+    });
+    expect(next).not.toHaveBeenCalled();
+
+    const [cookieName, token, options] = jest.mocked(response.cookie).mock
+      .calls[0] ?? [];
+    expect(cookieName).toBe(PASSWORD_RESET_COOKIE_NAME);
+    expect(token).toMatch(/^[a-f0-9]{64}$/);
+    expect(options).toMatchObject({
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 300_000,
+      path: PASSWORD_RESET_COOKIE_PATH,
+    });
+    expect(JSON.stringify(jest.mocked(response.json).mock.calls)).not.toContain(
+      token as string
+    );
+    expect(redisSet).toHaveBeenCalledWith(
+      expect.stringMatching(/^password_reset:[a-f0-9]{64}$/),
+      'user-1',
+      'EX',
+      300
+    );
+    expect(redisSet.mock.calls[0]?.[0]).not.toContain(token);
+  });
+
+  it('stores only a hash of the reset token and consumes the grant atomically', async () => {
+    const token = 'opaque-reset-token';
+    redisSet.mockResolvedValue('OK');
+    redisGet.mockResolvedValue('user-1');
+    redisEval.mockResolvedValue('user-1');
+
+    await createPasswordResetGrant('user-1', token);
+    await expect(getPasswordResetGrantUserId(token)).resolves.toBe('user-1');
+    await expect(consumePasswordResetGrant(token, 'user-1')).resolves.toBe(
+      'user-1'
+    );
+
+    expect(redisSet).toHaveBeenCalledWith(
+      expect.stringMatching(/^password_reset:[a-f0-9]{64}$/),
+      'user-1',
+      'EX',
+      300
+    );
+    expect(redisSet.mock.calls[0]?.[0]).not.toContain(token);
+    expect(redisEval).toHaveBeenLastCalledWith(
+      expect.stringContaining("redis.call('DEL', KEYS[1])"),
+      1,
+      expect.stringMatching(/^password_reset:[a-f0-9]{64}$/),
+      'user-1'
     );
   });
 });

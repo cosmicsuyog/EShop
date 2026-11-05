@@ -2,6 +2,10 @@
 import { NextFunction, Request, Response } from 'express';
 import {
   checkOtpRestrictions,
+  consumePasswordResetGrant,
+  getPasswordResetGrantUserId,
+  PASSWORD_RESET_COOKIE_NAME,
+  PASSWORD_RESET_COOKIE_PATH,
   sendOtp,
   trackOtpRequests,
   verifyOtp,
@@ -10,10 +14,15 @@ import {
   verifyForgotPasswordOtp,
 } from '../utils/auth.helper';
 import prisma from '@packages/libs/prisma/index.js';
-import { AuthError, ValidationError } from '@packages/error-handler/index';
+import {
+  AuthError,
+  ForbiddenError,
+  ValidationError,
+} from '@packages/error-handler/index';
 import bcrypt from "bcryptjs"
 import { setCookie } from '../utils/cookies/setCookies';
 import { signUserToken } from '../utils/sessionTokens';
+import { trustedUserInterfaceOrigin } from '../utils/trustedOrigin';
 
 
 export const userRegistration = async (
@@ -146,35 +155,70 @@ export const resetUserPassword = async(
   next:NextFunction
 )=>{
   try {
-    const {email ,newPassword} = req.body;
-
-    if(!email || !newPassword){
-      return next(new ValidationError("Email and new password is required!"))
-    }
-    const user = await prisma.users.findUnique({where:{email}});
-    if(!user) return next(new ValidationError("User not found!"));
-
-    // compare new password with the existing one
-    const isSamePassword =await bcrypt.compare(newPassword,user.password!);
-
-    if(isSamePassword){
-      return next(new ValidationError("New Password cannot be the same as the old password!"))
+    if (req.get('origin') !== trustedUserInterfaceOrigin) {
+      return next(
+        new ForbiddenError('Password reset requests must come from the storefront.')
+      );
     }
 
-    // hash the new password 
-    const hashedPassword = await bcrypt.hash(newPassword,10);
+    const token = req.cookies?.[PASSWORD_RESET_COOKIE_NAME];
+    const { newPassword } = req.body ?? {};
+    if (
+      typeof token !== 'string' ||
+      typeof newPassword !== 'string' ||
+      newPassword.length < 8 ||
+      Buffer.byteLength(newPassword, 'utf8') > 72
+    ) {
+      return next(
+        new ValidationError(
+          'The reset request is invalid or expired, or the password does not meet the requirements.'
+        )
+      );
+    }
+
+    const userId = await getPasswordResetGrantUserId(token);
+    if (!userId) {
+      return next(
+        new ValidationError('The reset request is invalid or expired. Request a new code.')
+      );
+    }
+
+    const user = await prisma.users.findUnique({ where: { id: userId } });
+    if (!user) {
+      return next(
+        new ValidationError('The reset request is invalid or expired. Request a new code.')
+      );
+    }
+
+    if (user.password && (await bcrypt.compare(newPassword, user.password))) {
+      return next(
+        new ValidationError('Choose a password different from your current password.')
+      );
+    }
+
+    const consumedUserId = await consumePasswordResetGrant(token, user.id);
+    if (consumedUserId !== user.id) {
+      return next(
+        new ValidationError('The reset request is invalid or expired. Request a new code.')
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await prisma.users.update({
-      where:{email},
-      data:{password:hashedPassword},
-    })
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
 
-    res.status(200).json({
-      message:"Password reset successfully"
-    })
+    res.clearCookie(PASSWORD_RESET_COOKIE_NAME, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      path: PASSWORD_RESET_COOKIE_PATH,
+    });
 
-    
+    return res.status(200).json({ message: 'Password reset successfully.' });
   } catch (error) {
-    next(error)
+    return next(error);
   }
 }

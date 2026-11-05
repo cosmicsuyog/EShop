@@ -22,6 +22,9 @@ const refreshExcludedPaths = new Set([
   '/api/login-user',
   '/api/user-registration',
   '/api/verify-registration',
+  '/api/forgot-password-user',
+  '/api/verify-forgot-password-user',
+  '/api/reset-password-user',
   '/api/auth/refresh-token',
   '/api/auth/logout-user',
 ]);
@@ -135,6 +138,17 @@ export const verifyCustomerRegistration = async (
     ...values,
     otp,
   });
+
+export const requestCustomerPasswordReset = async (email: string) =>
+  authApi.post('/api/forgot-password-user', { email });
+
+export const verifyCustomerPasswordResetOtp = async (
+  email: string,
+  otp: string
+) => authApi.post('/api/verify-forgot-password-user', { email, otp });
+
+export const resetCustomerPassword = async (newPassword: string) =>
+  authApi.post('/api/reset-password-user', { newPassword });
 
 export const getCurrentUser = async () => {
   const { data } = await authApi.get<{ user?: unknown }>(

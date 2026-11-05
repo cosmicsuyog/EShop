@@ -7,6 +7,50 @@ import prisma from '@packages/libs/prisma';
 
 export const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export const PASSWORD_RESET_COOKIE_NAME = 'passwordResetToken';
+export const PASSWORD_RESET_COOKIE_PATH = '/api/reset-password-user';
+export const PASSWORD_RESET_TOKEN_TTL_SECONDS = 5 * 60;
+
+const passwordResetGrantKey = (token: string) =>
+  `password_reset:${crypto.createHash('sha256').update(token).digest('hex')}`;
+
+export const createPasswordResetGrant = async (
+  userId: string,
+  token: string
+) =>
+  redis.set(
+    passwordResetGrantKey(token),
+    userId,
+    'EX',
+    PASSWORD_RESET_TOKEN_TTL_SECONDS
+  );
+
+export const getPasswordResetGrantUserId = async (token: string) => {
+  const userId = await redis.get(passwordResetGrantKey(token));
+  return typeof userId === 'string' && userId.length > 0 ? userId : null;
+};
+
+export const consumePasswordResetGrant = async (
+  token: string,
+  expectedUserId: string
+) => {
+  const result = await redis.eval(
+    `
+      local userId = redis.call('GET', KEYS[1])
+      if userId and userId == ARGV[1] then
+        redis.call('DEL', KEYS[1])
+        return userId
+      end
+      return ''
+    `,
+    1,
+    passwordResetGrantKey(token),
+    expectedUserId
+  );
+
+  return typeof result === 'string' && result.length > 0 ? result : null;
+};
+
 export const validationRegistrationData = (
   data: unknown,
   userType: 'user' | 'seller'
@@ -171,22 +215,31 @@ export const handleForgotPassword = async (
   userType: 'user' | 'seller'
 ) => {
   try {
-    const { email } = req.body;
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
     if (!email) throw new ValidationError('Email is required!');
+    if (!emailRegex.test(email)) {
+      throw new ValidationError('Invalid email format');
+    }
 
-    // find user/seller in DB
     const user =
-      userType === 'user' &&
-      (await prisma.users.findUnique({ where: { email } }));
+      userType === 'user'
+        ? await prisma.users.findUnique({ where: { email } })
+        : null;
 
-    if (!user) throw new ValidationError(`${userType} not found!`);
-    await checkOtpRestrictions(email);
-    await trackOtpRequests(email);
+    if (user) {
+      try {
+        await checkOtpRestrictions(email);
+        await trackOtpRequests(email);
 
-    // Generate OTP and send Email
-    await sendOtp(user.name, email, 'forgot-password-user-mail');
-    return res.status(200).json({
-      message: 'OTP sent to email.Please verify your account.',
+        await sendOtp(user.name, email, 'forgot-password-user-mail');
+      } catch {
+        // Keep the response identical for unknown addresses, throttled requests,
+        // and delivery failures so this endpoint cannot enumerate accounts.
+      }
+    }
+
+    return res.status(202).json({
+      message: 'If an account exists, password reset instructions will be sent.',
     });
   } catch (error) {
     return next(error);
@@ -199,13 +252,34 @@ export const verifyForgotPasswordOtp = async (
   next: NextFunction
 ) => {
   try {
-    const { email, otp } = req.body;
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+    const otp = typeof req.body?.otp === 'string' ? req.body.otp.trim() : '';
     if (!email || !otp) {
       throw new ValidationError('Email and otp is required!');
     }
+    if (!emailRegex.test(email) || !/^\d{6}$/.test(otp)) {
+      throw new ValidationError('Invalid or expired OTP!');
+    }
+
     await verifyOtp(email, otp);
+
+    const user = await prisma.users.findUnique({ where: { email } });
+    if (!user) {
+      throw new ValidationError('Invalid or expired OTP!');
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    await createPasswordResetGrant(user.id, token);
+    res.cookie(PASSWORD_RESET_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: PASSWORD_RESET_TOKEN_TTL_SECONDS * 1000,
+      path: PASSWORD_RESET_COOKIE_PATH,
+    });
+
     res.status(200).json({
-      message: 'OTP verified. You can now reset your password.',
+      message: 'Code verified. You can now choose a new password.',
     });
   } catch (error) {
     return next(error);

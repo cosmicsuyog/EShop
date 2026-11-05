@@ -12,8 +12,11 @@ import {
   getPostLoginPath,
   isSafeUser,
   loginCustomer,
+  requestCustomerPasswordReset,
   requestCustomerRegistration,
+  resetCustomerPassword,
   SafeUser,
+  verifyCustomerPasswordResetOtp,
   verifyCustomerRegistration,
 } from './authApi';
 
@@ -87,7 +90,7 @@ describe('auth API client', () => {
     expect(responses.map(({ status }) => status)).toEqual([200, 200]);
   });
 
-  it('does not refresh login, registration, or refresh requests', async () => {
+  it('does not refresh public authentication or password reset requests', async () => {
     const requestedPaths: string[] = [];
     let refreshRequestCount = 0;
     authApi.defaults.adapter = async (config) => {
@@ -104,13 +107,54 @@ describe('auth API client', () => {
         '/api/login-user',
         '/api/user-registration',
         '/api/verify-registration',
+        '/api/forgot-password-user',
+        '/api/verify-forgot-password-user',
+        '/api/reset-password-user',
         '/api/auth/refresh-token',
         '/api/auth/logout-user',
       ].map((path) => authApi.post(path).catch(() => undefined))
     );
 
-    expect(requestedPaths).toHaveLength(5);
+    expect(requestedPaths).toHaveLength(8);
     expect(refreshRequestCount).toBe(1);
+  });
+
+  it('uses the existing request, OTP verification, and reset endpoints', async () => {
+    const requests: Array<{
+      path: string;
+      body: unknown;
+      withCredentials?: boolean;
+    }> = [];
+    authApi.defaults.adapter = async (config) => {
+      requests.push({
+        path: config.url ?? '',
+        body: JSON.parse(config.data as string),
+        withCredentials: config.withCredentials,
+      });
+      return makeResponse(config, 200, { success: true });
+    };
+
+    await requestCustomerPasswordReset('customer@example.com');
+    await verifyCustomerPasswordResetOtp('customer@example.com', '123456');
+    await resetCustomerPassword('new-password-value');
+
+    expect(requests).toEqual([
+      {
+        path: '/api/forgot-password-user',
+        body: { email: 'customer@example.com' },
+        withCredentials: true,
+      },
+      {
+        path: '/api/verify-forgot-password-user',
+        body: { email: 'customer@example.com', otp: '123456' },
+        withCredentials: true,
+      },
+      {
+        path: '/api/reset-password-user',
+        body: { newPassword: 'new-password-value' },
+        withCredentials: true,
+      },
+    ]);
   });
 
   it('logs in with credentials and returns only safe profile data', async () => {
