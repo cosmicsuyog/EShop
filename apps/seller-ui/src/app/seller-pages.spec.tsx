@@ -1,11 +1,11 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import SellerLoginPage from './login/page';
-import SellerRegisterPage from './register/page';
-import SellerProductsPage from './products/page';
-import NewSellerProductPage from './products/new/page';
-import SellerPaymentsPage from './payments/page';
-import SellerDiscountsPage from './discounts/page';
+import SellerLoginPage from './(routes)/login/page';
+import SellerRegisterPage from './(routes)/signup/page';
+import SellerProductsPage from './(routes)/dashboard/all-products/page';
+import NewSellerProductPage from './(routes)/dashboard/create-product/page';
+import SellerPaymentsPage from './(routes)/dashboard/payments/page';
+import SellerDiscountsPage from './(routes)/dashboard/discount-codes/page';
 
 jest.mock('next/link', () => {
   const { createElement } = require('react');
@@ -28,8 +28,8 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-jest.mock('../components/StoreHeader', () => ({
-  StoreHeader: () => React.createElement('header', null, 'Store header'),
+jest.mock('./components/SellerHeader', () => ({
+  SellerHeader: () => React.createElement('header', null, 'Seller header'),
 }));
 
 describe('seller onboarding pages', () => {
@@ -40,7 +40,7 @@ describe('seller onboarding pages', () => {
     expect(markup).toContain('for="seller-login-email"');
     expect(markup).toContain('for="seller-login-password"');
     expect(markup).toContain('Sign in as seller');
-    expect(markup).toContain('href="/seller/register"');
+    expect(markup).toContain('href="/signup"');
   });
 
   it('shows a session-checking state before the authenticated shop setup', () => {

@@ -33,9 +33,12 @@ export function StoreHeader() {
       </Link>
       <span className="store-header-note">Thoughtful finds, everyday.</span>
       <nav className="auth-header-actions" aria-label="Account">
-        <Link className="auth-header-link" href="/seller/register">
+        <a
+          className="auth-header-link"
+          href={`${process.env.NEXT_PUBLIC_SELLER_UI_URL ?? 'http://localhost:3001'}/signup`}
+        >
           Open a shop
-        </Link>
+        </a>
         <Link
           aria-label={`Cart, ${cart?.itemCount ?? 0} items`}
           className="auth-header-link cart-header-link"
