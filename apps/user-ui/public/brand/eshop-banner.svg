@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520">
+  <defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#102d3a"/><stop offset="1" stop-color="#285c4d"/></linearGradient></defs>
+  <rect width="900" height="520" rx="32" fill="url(#g)"/>
+  <circle cx="650" cy="180" r="160" fill="#d9c37a" opacity=".25"/><circle cx="730" cy="330" r="120" fill="#fff" opacity=".1"/>
+  <text x="64" y="250" fill="white" font-family="Arial,sans-serif" font-size="56" font-weight="700">Find something worth keeping.</text>
+</svg>

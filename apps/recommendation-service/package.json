@@ -1,0 +1,33 @@
+{
+  "name": "@./recommendation-service",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@tensorflow/tfjs": "^4.22.0" },
+  "nx": {
+    "name": "recommendation-service",
+    "projectType": "application",
+    "sourceRoot": "apps/recommendation-service/src",
+    "targets": {
+      "build": {
+        "executor": "@nx/esbuild:esbuild",
+        "options": {
+          "platform": "node",
+          "outputPath": "apps/recommendation-service/dist",
+          "format": ["cjs"],
+          "bundle": true,
+          "main": "apps/recommendation-service/src/main.ts",
+          "tsConfig": "apps/recommendation-service/tsconfig.app.json",
+          "external": ["express", "cookie-parser", "cors", "ioredis", "@prisma/client"],
+          "esbuildOptions": { "sourcemap": true, "outExtension": { ".js": ".cjs" } }
+        }
+      },
+      "serve": {
+        "executor": "@nx/js:node",
+        "dependsOn": ["build"],
+        "options": { "buildTarget": "recommendation-service:build", "runBuildTargetDependencies": false }
+      },
+      "test": { "options": { "passWithNoTests": true } }
+    }
+  }
+}

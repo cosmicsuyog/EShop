@@ -1,8 +1,13 @@
 import Link from 'next/link';
 import { StoreHeader } from './components/StoreHeader';
 import ProductImages from './components/ProductImages';
+import { ProductQuickAdd } from './components/ProductQuickAdd';
+import { ProductCardTools } from './components/ProductCardTools';
+import HomepageDiscoverySections from './components/HomepageDiscoverySections';
+import { DynamicHeroBanner } from './components/DynamicHeroBanner';
 
 type CatalogProduct = {
+  id: string;
   images: ProductImage[];
   slug: string;
   title: string;
@@ -68,6 +73,7 @@ const isCatalogProduct = (value: unknown): value is CatalogProduct => {
   return (
     Array.isArray(product.images) &&
     product.images.every(isProductImage) &&
+    typeof product.id === 'string' &&
     typeof product.slug === 'string' &&
     typeof product.title === 'string' &&
     typeof product.category === 'string' &&
@@ -355,17 +361,82 @@ export default async function Index({
 
   return (
     <main className="store-shell">
-      <StoreHeader />
+      <StoreHeader
+        initialCategories={categories}
+        searchTerm={searchTerm ?? ''}
+      />
 
-      <section className="catalog-intro" aria-labelledby="catalog-title">
-        <p className="catalog-eyebrow">THE EVERYDAY EDIT</p>
-        <h1 id="catalog-title">Good things, picked for you.</h1>
-        <p className="catalog-lede">
-          Explore the latest finds across our product catalog.
-        </p>
+      <section className="catalog-hero" aria-labelledby="catalog-title">
+        <div className="catalog-hero-copy">
+          <p className="catalog-eyebrow">A MARKETPLACE FOR EVERYDAY FINDS</p>
+          <h1 id="catalog-title">
+            Find something <span>worth keeping.</span>
+          </h1>
+          <p className="catalog-lede">
+            Browse products from EShop sellers, then keep your picks
+            in a cart that stays with your account.
+          </p>
+          <div className="catalog-hero-actions">
+            <a className="hero-primary-link" href="#catalog">
+              Explore the collection <span aria-hidden="true">→</span>
+            </a>
+            <a
+              className="hero-secondary-link"
+              href={`${process.env.NEXT_PUBLIC_SELLER_SERVER_URI ?? process.env.NEXT_PUBLIC_SELLER_UI_URL ?? 'http://localhost:3001'}/signup`}
+            >
+              Open your shop
+            </a>
+          </div>
+          <div className="catalog-hero-meta" aria-label="Marketplace summary">
+            <span>
+              <strong>{pagination?.total ?? 0}</strong>{' '}
+              {searchTerm || selectedCategory ? 'matching products' : 'products in the catalog'}
+            </span>
+            <span>
+              <strong>{categories.length}</strong>{' '}
+              {categories.length === 1 ? 'department' : 'departments'}
+            </span>
+          </div>
+        </div>
+        <aside className="catalog-hero-visual" aria-label="A featured product from the live catalog">
+          <DynamicHeroBanner />
+          <div className="hero-visual-glow" />
+          {products[0] ? (
+            <article className="hero-feature-card">
+              <Link
+                className="hero-feature-image"
+                href={`/products/${encodeURIComponent(products[0].slug)}`}
+                aria-label={`View ${products[0].title}`}
+              >
+                <ProductImages
+                  fallbackLabel={products[0].category.slice(0, 1).toUpperCase()}
+                  images={products[0].images}
+                  title={products[0].title}
+                  variant="card"
+                />
+              </Link>
+              <div className="hero-feature-content">
+                <p>Fresh from the catalog</p>
+                <h2>
+                  <Link href={`/products/${encodeURIComponent(products[0].slug)}`}>
+                    {products[0].title}
+                  </Link>
+                </h2>
+                <strong>{formatPrice(products[0].sale_price)}</strong>
+              </div>
+            </article>
+          ) : (
+            <div className="hero-empty-art" aria-hidden="true">
+              <span className="hero-empty-shape hero-empty-shape-one" />
+              <span className="hero-empty-shape hero-empty-shape-two" />
+              <span className="hero-empty-copy">The good stuff<br />starts here.</span>
+            </div>
+          )}
+          <span className="hero-float-note">Thoughtful finds, everyday.</span>
+        </aside>
       </section>
 
-      <section className="catalog-section" aria-labelledby="products-title">
+      <section className="catalog-section" id="catalog" aria-labelledby="products-title">
         <div className="catalog-section-heading">
           <div>
             <p className="catalog-eyebrow">SHOP THE COLLECTION</p>
@@ -377,53 +448,20 @@ export default async function Index({
                 : 'Featured products'}
             </h2>
           </div>
-          {!error && (
+          {!error && pagination && (
             <span className="catalog-count">
-              {products.length} {products.length === 1 ? 'item' : 'items'}
+              {pagination.total} {pagination.total === 1 ? 'item' : 'items'}
             </span>
           )}
         </div>
-
-        <form action="/" className="catalog-search" method="get">
-          {selectedCategory && (
-            <input name="category" type="hidden" value={selectedCategory} />
-          )}
-          {selectedSubcategory && (
-            <input
-              name="subcategory"
-              type="hidden"
-              value={selectedSubcategory}
-            />
-          )}
-          <label className="catalog-search-label" htmlFor="catalog-search">
-            Search products
-          </label>
-          <div className="catalog-search-controls">
-            <input
-              autoComplete="off"
-              id="catalog-search"
-              maxLength={100}
-              name="q"
-              placeholder="Search by name, description, or brand"
-              type="search"
-              defaultValue={searchTerm ?? ''}
-            />
-            <button className="catalog-search-submit" type="submit">
-              Search
-            </button>
-            {searchTerm && (
-              <Link
-                className="catalog-search-clear"
-                href={catalogHref({
-                  category: selectedCategory,
-                  subcategory: selectedSubcategory,
-                })}
-              >
-                Clear search
-              </Link>
-            )}
-          </div>
-        </form>
+        {searchTerm && (
+          <p className="catalog-active-search">
+            Showing matches for <strong>“{searchTerm}”</strong>{' '}
+            <Link href={catalogHref({ category: selectedCategory, subcategory: selectedSubcategory })}>
+              Clear search
+            </Link>
+          </p>
+        )}
 
         <nav className="category-nav" aria-label="Product categories">
           <a
@@ -528,7 +566,7 @@ export default async function Index({
                 ? `No products matched "${searchTerm}".`
                 : selectedCategory
                 ? `No products found in ${selectedCategory}.`
-                : 'Your next favorite is on its way.'}
+                : 'No products available yet'}
             </h3>
             <p>
               {searchTerm
@@ -539,13 +577,13 @@ export default async function Index({
         ) : (
           <div className="catalog-grid">
             {products.map((product) => (
-              <Link
-                className="product-card-link"
-                href={`/products/${encodeURIComponent(product.slug)}`}
-                key={product.slug}
-              >
-                <article className="product-card">
+                <article className="product-card" key={product.slug}>
+                  <Link
+                    className="product-card-link"
+                    href={`/products/${encodeURIComponent(product.slug)}`}
+                  >
                   <div className="product-card-art">
+                    <ProductCardTools productId={product.id} slug={product.slug} title={product.title} />
                     <ProductImages
                       fallbackLabel={product.category.slice(0, 1).toUpperCase()}
                       images={product.images}
@@ -557,6 +595,11 @@ export default async function Index({
                     ) : (
                       <span className="product-stock product-stock-empty">
                         Sold out
+                      </span>
+                    )}
+                    {product.regular_price > product.sale_price && (
+                      <span className="product-discount">
+                        {Math.round((1 - product.sale_price / product.regular_price) * 100)}% off
                       </span>
                     )}
                   </div>
@@ -586,8 +629,15 @@ export default async function Index({
                       <p className="product-brand">{product.brand}</p>
                     )}
                   </div>
+                  </Link>
+                  <div className="product-card-actions">
+                    <ProductQuickAdd
+                      productId={product.id}
+                      productSlug={product.slug}
+                      stock={product.stock}
+                    />
+                  </div>
                 </article>
-              </Link>
             ))}
           </div>
         )}
@@ -642,6 +692,8 @@ export default async function Index({
           </nav>
         )}
       </section>
+
+      <HomepageDiscoverySections />
 
       <footer className="store-footer">
         <span>EShop</span>

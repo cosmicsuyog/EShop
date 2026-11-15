@@ -5,13 +5,14 @@ generator client {
 
 datasource db {
   provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 model images {
   id        String    @id @default(auto()) @map("_id") @db.ObjectId
   file_id   String    @unique
   url       String
-  userId    String?   @unique @db.ObjectId
+  userId    String?   @db.ObjectId
   users     users?    @relation(fields: [userId], references: [id])
   productId String?   @db.ObjectId
   products  products? @relation(fields: [productId], references: [id])
@@ -24,14 +25,19 @@ model users {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   email     String   @unique
+  googleId  String?  @unique
   password  String?
+  role      String   @default("user")
   sessionVersion Int  @default(0)
   following String[]
-  avatar    images?
+  avatar    images[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   imagesId  String?  @db.ObjectId
   cart      carts?
+  orders    orders[]
+  addresses addresses[]
+  analytics userAnalytics?
 }
 
 enum productStatus {
@@ -51,6 +57,8 @@ model shops {
   sellerId      String?    @unique @db.ObjectId
   sellers       sellers?   @relation(fields: [sellerId], references: [id])
   products      products[]
+
+  @@index([category])
 }
 
 model sellers {
@@ -60,12 +68,63 @@ model sellers {
   phone_number   String
   country        String
   password       String
-  stripeId       String?          @unique
+  // Uniqueness for populated IDs is enforced by the local partial MongoDB index.
+  stripeId       String?
   shop           shops?
   images         images[]
   discount_codes discount_codes[]
+  orderItems orderItems[]
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
+}
+
+model conversationGroup {
+  id                    String        @id @default(auto()) @map("_id") @db.ObjectId
+  isGroup               Boolean       @default(false)
+  name                  String?
+  creatorId             String        @db.ObjectId
+  participantIds        String[]
+  participantKey        String        @unique
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  participants          participant[]
+  messages              message[]
+
+  @@index([participantIds])
+  @@index([updatedAt])
+}
+
+model participant {
+  id             String            @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String            @db.ObjectId
+  userId         String?           @db.ObjectId
+  sellerId       String?           @db.ObjectId
+  lastSeenAt     DateTime?
+  isOnline       Boolean           @default(false)
+  unreadCount    Int               @default(0)
+  // Supports push-notification preferences in a future mobile client.
+  mute           Boolean           @default(false)
+  joinedAt       DateTime          @default(now())
+  conversation   conversationGroup @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId])
+  @@index([userId])
+  @@index([sellerId])
+}
+
+model message {
+  id             String            @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String            @db.ObjectId
+  senderId       String            @db.ObjectId
+  senderType     String
+  content        String
+  attachments    Json?
+  status         String            @default("sent")
+  createdAt      DateTime          @default(now())
+  conversation   conversationGroup @relation(fields: [conversationId], references: [id])
+
+  @@unique([conversationId, senderId, content, createdAt])
+  @@index([conversationId, createdAt])
 }
 
 model discount_codes {
@@ -110,6 +169,11 @@ model products {
   updatedAt            DateTime      @updatedAt
   deletedAt            DateTime?
   cartItems            cartItems[]
+  orderItems           orderItems[]
+
+  @@index([starting_date])
+  @@index([category])
+  @@index([shopId])
 }
 
 model carts {
@@ -119,6 +183,23 @@ model carts {
   items     cartItems[]
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
+}
+
+model addresses {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  label     String
+  name      String
+  street    String
+  city      String
+  zipCode   String
+  country   String
+  isDefault Boolean  @default(false)
+  userId    String   @db.ObjectId
+  user      users    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
 }
 
 model cartItems {
@@ -133,4 +214,121 @@ model cartItems {
 
   @@unique([cartId, productId])
   @@index([productId])
+}
+
+enum orderStatus {
+  Pending
+  Paid
+  Failed
+}
+
+model orders {
+  id               String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String      @db.ObjectId
+  user             users       @relation(fields: [userId], references: [id])
+  checkoutKey      String      @unique
+  stripeSessionId  String?
+  checkoutUrl      String?
+  paymentIntentId  String?
+  status           orderStatus @default(Pending)
+  deliveryStatus   String      @default("Ordered")
+  currency         String      @default("usd")
+  subtotalCents    Int
+  discountCents    Int         @default(0)
+  platformFeeCents Int         @default(0)
+  totalCents       Int
+  shippingAddress  String
+  couponCode       String?
+  emailSentAt      DateTime?
+  paidAt           DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  items            orderItems[]
+  transfers        orderTransfers[]
+
+  @@index([userId, createdAt])
+}
+
+model orderItems {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId        String   @db.ObjectId
+  order          orders   @relation(fields: [orderId], references: [id])
+  productId      String   @db.ObjectId
+  product        products @relation(fields: [productId], references: [id])
+  sellerId       String   @db.ObjectId
+  seller         sellers  @relation(fields: [sellerId], references: [id])
+  title          String
+  quantity       Int
+  unitPriceCents Int
+  subtotalCents  Int
+  discountCents  Int      @default(0)
+
+  @@index([sellerId, orderId])
+  @@index([productId])
+}
+
+model orderTransfers {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId          String   @db.ObjectId
+  order            orders   @relation(fields: [orderId], references: [id])
+  sellerId         String   @db.ObjectId
+  stripeAccountId  String
+  amountCents      Int
+  stripeTransferId String?
+  createdAt        DateTime @default(now())
+
+  @@unique([orderId, sellerId])
+}
+
+model productAnalytics {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  productId   String   @unique @db.ObjectId
+  views       Int      @default(0)
+  cartAdds    Int      @default(0)
+  wishlistAdds Int     @default(0)
+  soldUnits   Int      @default(0)
+  updatedAt   DateTime @updatedAt
+}
+
+model userAnalytics {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @unique @db.ObjectId
+  user        users    @relation(fields: [userId], references: [id])
+  country     String?
+  city        String?
+  device      String?
+  actions     Json[]   @default([])
+  recommendations String[] @default([])
+  lastTrained DateTime?
+  lastVisited DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model siteConfig {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  logo          String?
+  banner        String?
+  categories    String[] @default([])
+  subCategories String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model sellerOrderNotifications {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  sellerId  String   @db.ObjectId
+  orderId   String   @db.ObjectId
+  message   String
+  createdAt DateTime @default(now())
+  readAt    DateTime?
+
+  @@unique([sellerId, orderId])
+  @@index([sellerId, createdAt])
+}
+
+model adminOrderAlerts {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String   @unique @db.ObjectId
+  message   String
+  createdAt DateTime @default(now())
 }
